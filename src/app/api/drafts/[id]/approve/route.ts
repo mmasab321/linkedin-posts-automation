@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getConfig } from "@/lib/config";
 import { createGetLateClient } from "@/lib/getlate";
+import { inferMediaType, parseMediaUrls } from "@/lib/media-urls";
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { LateApiError, RateLimitError } from "@getlatedev/node";
 
@@ -39,14 +40,36 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
   try {
     const late = createGetLateClient(getlateKey);
-    const { data } = await late.posts.createPost({
-      body: {
-        content: draft.content,
-        publishNow: false,
-        scheduledFor: slot.toISOString(),
-        platforms: [{ platform: "linkedin", accountId: linkedinAccountId }],
-      },
-    });
+    const mediaUrls = parseMediaUrls(draft.mediaUrls);
+    const body: {
+      content: string;
+      publishNow: false;
+      scheduledFor: string;
+      mediaItems?: Array<{ type?: "image" | "video" | "document"; url: string }>;
+      platforms: Array<{
+        platform: "linkedin";
+        accountId: string;
+        platformSpecificData?: { firstComment?: string; disableLinkPreview?: boolean };
+      }>;
+    } = {
+      content: draft.content,
+      publishNow: false,
+      scheduledFor: slot.toISOString(),
+      platforms: [
+        {
+          platform: "linkedin",
+          accountId: linkedinAccountId,
+          platformSpecificData: {
+            ...(draft.firstComment != null && draft.firstComment.trim() !== "" && { firstComment: draft.firstComment.trim() }),
+            ...(draft.disableLinkPreview === true && { disableLinkPreview: true }),
+          },
+        },
+      ],
+    };
+    if (mediaUrls.length > 0) {
+      body.mediaItems = mediaUrls.map((url) => ({ url, type: inferMediaType(url) }));
+    }
+    const { data } = await late.posts.createPost({ body });
 
     const updated = await prisma.$transaction(async (tx) => {
       const now = new Date();

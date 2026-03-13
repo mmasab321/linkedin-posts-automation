@@ -21,8 +21,21 @@ type Draft = {
   topic: string;
   postType: string;
   createdAt: string;
+  firstComment?: string | null;
+  disableLinkPreview?: boolean | null;
+  mediaUrls?: string | null;
   schedule?: { scheduledFor: string; getlatePostId?: string | null; getlateStatus?: string | null } | null;
 };
+
+function parseMediaUrlsFromDraft(json: string | null | undefined): string[] {
+  if (json == null || String(json).trim() === "") return [];
+  try {
+    const a = JSON.parse(json) as unknown;
+    return Array.isArray(a) ? a.filter((u): u is string => typeof u === "string" && u.startsWith("http")) : [];
+  } catch {
+    return [];
+  }
+}
 
 function renderLinkedInText(content: string) {
   const parts = content.split(/(\#[A-Za-z0-9_]+)/g);
@@ -48,7 +61,10 @@ export function DashboardClient() {
   const [error, setError] = React.useState<string | null>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editValue, setEditValue] = React.useState<string>("");
-  const [editScheduledFor, setEditScheduledFor] = React.useState<string>(""); // datetime-local value for scheduled posts
+  const [editScheduledFor, setEditScheduledFor] = React.useState<string>("");
+  const [editFirstComment, setEditFirstComment] = React.useState<string>("");
+  const [editDisableLinkPreview, setEditDisableLinkPreview] = React.useState<boolean>(false);
+  const [editMediaUrls, setEditMediaUrls] = React.useState<string[]>([]);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<"all" | "pending" | "scheduled" | "done">("all");
 
@@ -95,10 +111,20 @@ export function DashboardClient() {
   async function saveEdit(id: string, isScheduled: boolean) {
     setBusyId(id);
     try {
-      const body: { content: string; scheduledFor?: string } = { content: editValue };
+      const body: {
+        content: string;
+        scheduledFor?: string;
+        firstComment?: string;
+        disableLinkPreview?: boolean;
+        mediaUrls?: string[];
+      } = { content: editValue };
       if (isScheduled && editScheduledFor) {
         body.scheduledFor = new Date(editScheduledFor).toISOString();
       }
+      body.firstComment = editFirstComment.trim();
+      body.disableLinkPreview = editDisableLinkPreview;
+      const validUrls = editMediaUrls.filter((u) => u.trim().startsWith("http"));
+      body.mediaUrls = validUrls;
       const res = await fetch(`/api/drafts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -110,6 +136,9 @@ export function DashboardClient() {
       setEditingId(null);
       setEditValue("");
       setEditScheduledFor("");
+      setEditFirstComment("");
+      setEditDisableLinkPreview(false);
+      setEditMediaUrls([]);
       await load();
     } catch (err: any) {
       setError(err?.message ?? "Failed to save.");
@@ -247,6 +276,9 @@ export function DashboardClient() {
                           setEditingId(null);
                           setEditValue("");
                           setEditScheduledFor("");
+                          setEditFirstComment("");
+                          setEditDisableLinkPreview(false);
+                          setEditMediaUrls([]);
                         }}
                         disabled={isBusy}
                       >
@@ -265,6 +297,9 @@ export function DashboardClient() {
                           setEditScheduledFor(
                             isScheduled && d.schedule?.scheduledFor ? toDateTimeLocal(d.schedule.scheduledFor) : "",
                           );
+                          setEditFirstComment(d.firstComment ?? "");
+                          setEditDisableLinkPreview(d.disableLinkPreview ?? false);
+                          setEditMediaUrls(parseMediaUrlsFromDraft(d.mediaUrls));
                         }}
                           disabled={isBusy}
                         >
@@ -304,10 +339,76 @@ export function DashboardClient() {
                   </div>
                 ) : null}
                 {isEditing ? (
-                  <>
-                    <Label className="text-xs">Content</Label>
-                    <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} rows={10} />
-                  </>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Content</Label>
+                      <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} rows={10} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">First comment (optional)</Label>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">LinkedIn first comment: links, CTA, extra context. Max 1250 chars.</p>
+                      <Textarea
+                        value={editFirstComment}
+                        onChange={(e) => setEditFirstComment(e.target.value)}
+                        placeholder="e.g. Link to article or CTA"
+                        rows={2}
+                        maxLength={1250}
+                        className="mt-1"
+                      />
+                      {editFirstComment.length > 0 && (
+                        <span className="text-xs text-neutral-500">{editFirstComment.length}/1250</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`disable-preview-${d.id}`}
+                        checked={editDisableLinkPreview}
+                        onChange={(e) => setEditDisableLinkPreview(e.target.checked)}
+                        className="rounded border-neutral-300"
+                      />
+                      <Label htmlFor={`disable-preview-${d.id}`} className="text-xs font-normal cursor-pointer">
+                        Disable link preview (URLs in post won’t show preview cards)
+                      </Label>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Media (optional)</Label>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Public image/video/PDF URLs. One per line or add rows.</p>
+                      <div className="mt-1 space-y-2">
+                        {editMediaUrls.map((url, idx) => (
+                          <div key={idx} className="flex gap-2">
+                            <Input
+                              type="url"
+                              value={url}
+                              onChange={(e) => {
+                                const next = [...editMediaUrls];
+                                next[idx] = e.target.value;
+                                setEditMediaUrls(next);
+                              }}
+                              placeholder="https://…"
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditMediaUrls(editMediaUrls.filter((_, i) => i !== idx))}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditMediaUrls([...editMediaUrls, ""])}
+                        >
+                          Add media URL
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div
                     className={cn(

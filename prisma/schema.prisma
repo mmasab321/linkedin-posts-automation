@@ -30,15 +30,18 @@ model MonthlyQuota {
 }
 
 model PostDraft {
-  id           String      @id @default(cuid())
-  status       DraftStatus @default(PENDING_REVIEW)
-  content      String // The LinkedIn text
-  topic        String
-  postType     String // story, insight, project, tip, hot_take, results
-  keyPoint     String
-  toneModifier String?
-  createdAt    DateTime    @default(now())
-  schedule     ScheduleSlot?
+  id                 String      @id @default(cuid())
+  status             DraftStatus @default(PENDING_REVIEW)
+  content            String // The LinkedIn text
+  topic              String
+  postType           String // story, insight, project, tip, hot_take, results
+  keyPoint           String
+  toneModifier       String?
+  firstComment       String? // LinkedIn first comment (CTA, link, etc.)
+  disableLinkPreview Boolean?    @default(false) // Disable link preview for URLs in content
+  mediaUrls          String? // JSON array of public media URLs for images/videos/PDF
+  createdAt          DateTime    @default(now())
+  schedule           ScheduleSlot?
 }
 
 enum DraftStatus {
