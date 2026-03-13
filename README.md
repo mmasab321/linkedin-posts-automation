@@ -1,6 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LinkedIn Auto-Poster
 
-## Getting Started
+Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedule via GetLate. 15 posts/month, 48h spacing, full queue on this platform.
+
+## Deploy on Render
+
+1. **Environment variables** (Dashboard → your Web Service → Environment):
+   - **`DATABASE_URL`** = `file:./dev.db` (required; SQLite file path)
+   - Optionally add API keys in the app’s **Settings** page after deploy so they’re stored in the DB.
+
+2. **Build command:** `npm install && npx prisma generate && npx prisma migrate deploy`
+
+3. **Start command:** `npm run build && npm start`
+
+Note: Render’s filesystem is ephemeral by default, so the DB can be reset on redeploy. For persistent data, add a [Persistent Disk](https://render.com/docs/disks) and set `DATABASE_URL` to a path on that disk (e.g. `file:/opt/render/project/data/sqlite.db`).
+
+## Getting Started (local)
 
 First, run the development server:
 
