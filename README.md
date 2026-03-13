@@ -8,9 +8,11 @@ Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedu
    - **`DATABASE_URL`** = `file:./dev.db` (required; SQLite file path)
    - Optionally add API keys in the app’s **Settings** page after deploy so they’re stored in the DB.
 
-2. **Build command:** `npm install && npx prisma generate && npx prisma migrate deploy`
+2. **Build command:** `npm install && npx prisma generate && npx prisma migrate deploy && npm run build`
 
-3. **Start command:** `npm run build && npm start`
+3. **Start command:** `npm start`
+
+4. **Avoid OOM on 512MB:** In Render → Environment, add **`NODE_OPTIONS`** = **`--max-old-space-size=460`** so the build stays under 512MB. The app uses `next build --webpack` (not Turbopack) to reduce memory.
 
 Note: Render’s filesystem is ephemeral by default, so the DB can be reset on redeploy. For persistent data, add a [Persistent Disk](https://render.com/docs/disks) and set `DATABASE_URL` to a path on that disk (e.g. `file:/opt/render/project/data/sqlite.db`).
 
