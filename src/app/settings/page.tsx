@@ -6,7 +6,7 @@ export default function SettingsPage() {
     <Card>
       <CardHeader>
         <CardTitle>Settings</CardTitle>
-        <CardDescription>Keys are stored in SQLite via Prisma. They’re never committed to code.</CardDescription>
+        <CardDescription>Keys are stored in the database (Postgres) via Prisma. They’re never committed to code.</CardDescription>
       </CardHeader>
       <CardContent>
         <SettingsClient />

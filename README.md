@@ -2,10 +2,27 @@
 
 Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedule via GetLate. 15 posts/month, 48h spacing, full queue on this platform.
 
+## Deploy on Vercel
+
+The app uses **PostgreSQL** (SQLite cannot run on Vercel’s serverless environment).
+
+1. **Create a Postgres database**
+   - [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) (Dashboard → Storage → Create Database), or  
+   - [Neon](https://neon.tech) (free tier), or any Postgres host.
+
+2. **Environment variable**
+   - In your Vercel project → **Settings → Environment Variables**, add **`DATABASE_URL`** with your Postgres connection string (e.g. `postgresql://user:pass@host:5432/dbname?sslmode=require`).
+
+3. **Build command** (optional override)
+   - `npm install && npx prisma generate && npx prisma migrate deploy && npm run build`  
+   - Or leave default; ensure **Build Command** includes `npx prisma generate` and `npx prisma migrate deploy` before `npm run build`.
+
+4. After deploy, open **Settings** in the app and add your GetLate API Key, Moonshot API Key, and LinkedIn Account ID (they’re stored in the DB).
+
 ## Deploy on Render
 
 1. **Environment variables** (Dashboard → your Web Service → Environment):
-   - **`DATABASE_URL`** = `file:./dev.db` (required; SQLite file path)
+   - **`DATABASE_URL`** = your **PostgreSQL** connection string (required). Use [Render Postgres](https://render.com/docs/databases) or an external Postgres (Neon, etc.). SQLite is not supported on serverless/read-only filesystems.
    - Optionally add API keys in the app’s **Settings** page after deploy so they’re stored in the DB.
 
 2. **Build command:** `npm install && npx prisma generate && npx prisma migrate deploy && npm run build`
@@ -18,7 +35,14 @@ Note: Render’s filesystem is ephemeral by default, so the DB can be reset on r
 
 ## Getting Started (local)
 
-First, run the development server:
+You need a **PostgreSQL** database. Use a local Postgres, [Neon](https://neon.tech), or [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres), then set **`DATABASE_URL`** in a `.env` file (e.g. `postgresql://user:pass@localhost:5432/mydb`). Then run migrations and the dev server:
+
+```bash
+npx prisma migrate deploy
+npm run dev
+```
+
+Or only the dev server if the DB is already migrated:
 
 ```bash
 npm run dev
