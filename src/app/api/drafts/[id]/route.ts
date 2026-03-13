@@ -68,10 +68,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
     }
 
-    await prisma.postDraft.update({
-      where: { id },
-      data: content !== null ? { content } : undefined,
-    });
+    if (content !== null) {
+      await prisma.postDraft.update({
+        where: { id },
+        data: { content },
+      });
+    }
     if (scheduledFor !== null && draft.schedule?.id) {
       await prisma.scheduleSlot.update({
         where: { draftId: id },
