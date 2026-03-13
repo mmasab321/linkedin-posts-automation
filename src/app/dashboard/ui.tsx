@@ -21,6 +21,7 @@ type Draft = {
   topic: string;
   postType: string;
   createdAt: string;
+  isAutopilot?: boolean;
   firstComment?: string | null;
   disableLinkPreview?: boolean | null;
   mediaUrls?: string | null;
@@ -67,6 +68,10 @@ export function DashboardClient() {
   const [editMediaUrls, setEditMediaUrls] = React.useState<string[]>([]);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<"all" | "pending" | "scheduled" | "done">("all");
+  const [sourceFilter, setSourceFilter] = React.useState<"all" | "manual" | "autopilot">("all");
+  const [autopilotStatus, setAutopilotStatus] = React.useState<{ enabled: boolean; pendingTopicsInPool: number } | null>(null);
+  const [nextTopics, setNextTopics] = React.useState<{ topic: string; id: string }[]>([]);
+  const [pausing, setPausing] = React.useState(false);
 
   async function load() {
     setLoading(true);
@@ -85,8 +90,31 @@ export function DashboardClient() {
     }
   }
 
+  async function loadAutopilot() {
+    try {
+      const [statusRes, topicsRes] = await Promise.all([
+        fetch("/api/autopilot/status"),
+        fetch("/api/admin/topics?status=PENDING&limit=3"),
+      ]);
+      if (statusRes.ok) {
+        const j = await statusRes.json();
+        setAutopilotStatus({ enabled: j.enabled, pendingTopicsInPool: j.pendingTopicsInPool ?? 0 });
+      }
+      if (topicsRes.ok) {
+        const j = await topicsRes.json();
+        setNextTopics((j.topics ?? []).map((t: { id: string; title: string }) => ({ id: t.id, topic: t.title })));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   React.useEffect(() => {
     load();
+  }, []);
+
+  React.useEffect(() => {
+    loadAutopilot();
   }, []);
 
   async function discard(id: string) {
@@ -183,7 +211,7 @@ export function DashboardClient() {
   const scheduled = drafts.filter((d) => d.status === SCHEDULED_STATUS);
   const done = drafts.filter((d) => DONE_STATUSES.includes(d.status));
 
-  const filtered =
+  let filtered =
     filter === "pending"
       ? pending
       : filter === "scheduled"
@@ -191,6 +219,18 @@ export function DashboardClient() {
         : filter === "done"
           ? done
           : drafts;
+  if (sourceFilter === "manual") filtered = filtered.filter((d) => !d.isAutopilot);
+  if (sourceFilter === "autopilot") filtered = filtered.filter((d) => d.isAutopilot);
+
+  async function emergencyStop() {
+    setPausing(true);
+    try {
+      await fetch("/api/autopilot/pause", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      await loadAutopilot();
+    } finally {
+      setPausing(false);
+    }
+  }
 
   if (loading) return <div className="text-sm text-neutral-600 dark:text-neutral-400">Loading…</div>;
 
@@ -219,7 +259,60 @@ export function DashboardClient() {
             {f === "all" ? "All" : f === "pending" ? `Pending (${pending.length})` : f === "scheduled" ? `Scheduled (${scheduled.length})` : `Done (${done.length})`}
           </button>
         ))}
+        <span className="ml-2 text-neutral-400">|</span>
+        {(["all", "manual", "autopilot"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setSourceFilter(f)}
+            className={cn(
+              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              sourceFilter === f
+                ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900"
+                : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
+            )}
+          >
+            {f === "all" ? "All" : f === "manual" ? "Manual" : "Autopilot"}
+          </button>
+        ))}
       </div>
+
+      {autopilotStatus?.enabled && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="font-medium text-amber-800 dark:text-amber-200">Autopilot on</span>
+              <span className="ml-2 text-sm text-amber-700 dark:text-amber-300">
+                • {autopilotStatus.pendingTopicsInPool} topics in queue
+                {nextTopics.length > 0 && ` • Next: "${nextTopics[0].topic.slice(0, 40)}…"`}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  await fetch("/api/autopilot/skip-next", { method: "POST" });
+                  loadAutopilot();
+                }}
+              >
+                Skip next
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={emergencyStop} disabled={pausing}>
+                {pausing ? "Pausing…" : "Emergency stop"}
+              </Button>
+            </div>
+          </div>
+          {nextTopics.length > 0 && (
+            <ul className="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
+              {nextTopics.map((t) => (
+                <li key={t.id}>{t.topic.slice(0, 60)}{t.topic.length > 60 ? "…" : ""}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300">
@@ -261,7 +354,12 @@ export function DashboardClient() {
                       <> • GetLate: {d.schedule.getlateStatus}</>
                     )}
                   </div>
-                  <div className="mt-1 text-sm font-medium">{d.topic}</div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-sm font-medium">{d.topic}</span>
+                    {d.isAutopilot && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Autopilot</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {isEditing ? (

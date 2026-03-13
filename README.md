@@ -19,6 +19,8 @@ The app uses **PostgreSQL** (SQLite cannot run on Vercel’s serverless environm
 
 4. After deploy, open **Settings** in the app and add your GetLate API Key, Moonshot API Key, and LinkedIn Account ID (they’re stored in the DB).
 
+5. **Autopilot (optional):** In **Settings → Autopilot** you can enable hands-free posting. Add RSS or evergreen topics, set max auto-posts per month and validation strictness. The cron job at `/api/cron/autopilot` runs daily (e.g. 8 AM UTC via `vercel.json`). Set **`CRON_SECRET`** in Vercel env if you want to protect the cron endpoint; the cron caller must send `Authorization: Bearer <CRON_SECRET>` or `X-Cron-Secret: <CRON_SECRET>`.
+
 ## Deploy on Render
 
 1. **Environment variables** (Dashboard → your Web Service → Environment):

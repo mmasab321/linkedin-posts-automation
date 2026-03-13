@@ -40,6 +40,7 @@ model PostDraft {
   firstComment       String? // LinkedIn first comment (CTA, link, etc.)
   disableLinkPreview Boolean?    @default(false) // Disable link preview for URLs in content
   mediaUrls          String? // JSON array of public media URLs for images/videos/PDF
+  isAutopilot        Boolean     @default(false) // true when created by autopilot
   createdAt          DateTime    @default(now())
   schedule           ScheduleSlot?
 }
@@ -60,4 +61,54 @@ model ScheduleSlot {
   scheduledFor  DateTime
   getlatePostId String?
   getlateStatus String? // pending, published, failed
+}
+
+// --- Autopilot (premium) ---
+model AutopilotConfig {
+  id              String    @id @default(cuid())
+  enabled         Boolean   @default(false)
+  scheduleTime    String    @default("09:00") // 24h format HH:mm
+  maxAutoPerMonth Int       @default(10)
+  lastRunAt       DateTime?
+  nextScheduledAt DateTime?
+  validationRules Json      @default("{}") // strict/balanced/relaxed, thresholds
+  consecutiveFailures Int   @default(0)
+  pausedUntil     DateTime? // manual pause or post-within-6h
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ContentSource {
+  id          String   @id @default(cuid())
+  type        String   // RSS, EVERGREEN, TRENDING
+  url         String?
+  title       String
+  isActive    Boolean  @default(true)
+  priority    Int      @default(50)
+  lastFetched DateTime?
+  createdAt   DateTime @default(now())
+  topics      TopicPool[]
+}
+
+model TopicPool {
+  id            String        @id @default(cuid())
+  sourceId      String
+  source        ContentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  title         String
+  status        String        @default("PENDING") // PENDING, USED, DISCARDED
+  usedAt        DateTime?
+  priorityBoost Int          @default(0)
+  createdAt     DateTime     @default(now())
+
+  @@index([status, createdAt])
+}
+
+model AutopilotLog {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  action          String   // GENERATED, VALIDATED, SCHEDULED, FAILED, SKIPPED
+  topic           String
+  draftId         String?
+  error           String?
+  validationScore Int?
 }

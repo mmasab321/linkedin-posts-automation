@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
 import { toPlainLinkedInText } from "@/lib/text";
+import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
 
 export const runtime = "nodejs";
 
@@ -77,6 +78,21 @@ export async function POST(req: Request) {
       toneModifier: toneModifier ?? null,
     },
   });
+
+  // Manual generation: pause autopilot for 24h to avoid collision
+  try {
+    const config = await getOrCreateAutopilotConfig();
+    if (config.enabled) {
+      const pausedUntil = new Date();
+      pausedUntil.setHours(pausedUntil.getHours() + 24);
+      await prisma.autopilotConfig.update({
+        where: { id: config.id },
+        data: { pausedUntil },
+      });
+    }
+  } catch {
+    // ignore
+  }
 
   return NextResponse.json({ draft });
 }

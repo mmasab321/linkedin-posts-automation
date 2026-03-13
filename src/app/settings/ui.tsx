@@ -5,6 +5,8 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { AutopilotTab } from "./autopilot-tab";
 
 type SettingsState = {
   hasGetLateKey: boolean;
@@ -24,6 +26,7 @@ export function SettingsClient() {
   const [testing, setTesting] = React.useState<"moonshot" | "getlate" | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [tab, setTab] = React.useState<"api" | "autopilot">("api");
 
   async function load() {
     setError(null);
@@ -90,6 +93,37 @@ export function SettingsClient() {
 
   return (
     <div className="space-y-6">
+      <div className="flex gap-2 border-b border-neutral-200 dark:border-neutral-800">
+        <button
+          type="button"
+          onClick={() => setTab("api")}
+          className={cn(
+            "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            tab === "api"
+              ? "border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
+              : "border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200",
+          )}
+        >
+          API Keys
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("autopilot")}
+          className={cn(
+            "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            tab === "autopilot"
+              ? "border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
+              : "border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200",
+          )}
+        >
+          Autopilot
+        </button>
+      </div>
+
+      {tab === "autopilot" ? (
+        <AutopilotTab />
+      ) : (
+        <>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>GetLate API key</Label>
@@ -138,6 +172,8 @@ export function SettingsClient() {
           {saving ? "Saving…" : "Save settings"}
         </Button>
       </div>
+        </>
+      )}
     </div>
   );
 }
