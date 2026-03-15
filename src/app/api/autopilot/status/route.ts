@@ -13,7 +13,7 @@ export async function GET() {
     where: { year: now.getFullYear(), month: now.getMonth() },
   });
   const usedCount = quota?.usedCount ?? 0;
-  const nextSlot = getNextAvailableSlot(now);
+  const nextSlot = await getNextAvailableSlot(now);
   const pendingTopics = await prisma.topicPool.count({ where: { status: "PENDING" } });
   const rules = (config.validationRules as Record<string, unknown>) || {};
   const maxAuto = config.maxAutoPerMonth ?? 10;
