@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
 import { prisma } from "@/lib/prisma";
@@ -31,7 +32,9 @@ export async function PATCH(req: Request) {
     data: {
       ...(parsed.data.scheduleTime != null && { scheduleTime: parsed.data.scheduleTime }),
       ...(parsed.data.maxAutoPerMonth != null && { maxAutoPerMonth: parsed.data.maxAutoPerMonth }),
-      ...(parsed.data.validationRules != null && { validationRules: parsed.data.validationRules }),
+      ...(parsed.data.validationRules != null && {
+        validationRules: parsed.data.validationRules as Prisma.InputJsonValue,
+      }),
     },
   });
   return NextResponse.json(updated);
