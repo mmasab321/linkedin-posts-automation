@@ -1,17 +1,18 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardClient } from "./ui";
 
 export default function DashboardPage() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Queue</CardTitle>
-        <CardDescription>Your queue: approve, edit, and cancel here. GetLate runs in the background when you schedule.</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight text-white">Post Queue</h1>
+        <p className="text-slate-400">
+          Your LinkedIn timeline. Approve, edit, and cancel here. GetLate securely publishes your content.
+        </p>
+      </div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-md sm:p-8">
         <DashboardClient />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

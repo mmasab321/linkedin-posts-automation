@@ -93,15 +93,15 @@ export function SettingsClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 border-b border-neutral-200 dark:border-neutral-800">
+      <div className="flex gap-4 border-b border-white/10 pb-4">
         <button
           type="button"
           onClick={() => setTab("api")}
           className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            "relative px-4 py-2 text-sm font-semibold transition-colors rounded-full",
             tab === "api"
-              ? "border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
-              : "border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200",
+              ? "bg-slate-800 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10"
+              : "text-slate-400 hover:text-white hover:bg-white/5",
           )}
         >
           API Keys
@@ -110,10 +110,10 @@ export function SettingsClient() {
           type="button"
           onClick={() => setTab("autopilot")}
           className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            "relative px-4 py-2 text-sm font-semibold transition-colors rounded-full",
             tab === "autopilot"
-              ? "border-neutral-900 text-neutral-900 dark:border-neutral-100 dark:text-neutral-100"
-              : "border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200",
+              ? "bg-slate-800 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10"
+              : "text-slate-400 hover:text-white hover:bg-white/5",
           )}
         >
           Autopilot
@@ -124,54 +124,59 @@ export function SettingsClient() {
         <AutopilotTab />
       ) : (
         <>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>GetLate API key</Label>
-          <Input
-            value={getlateApiKey}
-            onChange={(e) => setGetlateApiKey(e.target.value)}
-            placeholder={state?.hasGetLateKey ? "Saved (enter new to replace)" : "sk_..."}
-            autoComplete="off"
-          />
-          <div className="text-xs text-neutral-500 dark:text-neutral-400">Used only when you click Approve &amp; Schedule.</div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => test("getlate")} disabled={testing !== null}>
-              {testing === "getlate" ? "Testing…" : "Test GetLate"}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>GetLate API key</Label>
+              <Input
+                value={getlateApiKey}
+                onChange={(e) => setGetlateApiKey(e.target.value)}
+                placeholder={state?.hasGetLateKey ? "Saved (enter new to replace)" : "sk_..."}
+                autoComplete="off"
+              />
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Used only when you click Approve &amp; Schedule.</div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => test("getlate")} disabled={testing !== null}>
+                  {testing === "getlate" ? "Testing…" : "Test GetLate"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Moonshot API key (Kimi 2.5)</Label>
+              <Input
+                value={moonshotApiKey}
+                onChange={(e) => setMoonshotApiKey(e.target.value)}
+                placeholder={state?.hasMoonshotKey ? "Saved (enter new to replace)" : "sk-..."}
+                autoComplete="off"
+              />
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">Used only to generate drafts.</div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => test("moonshot")} disabled={testing !== null}>
+                  {testing === "moonshot" ? "Testing…" : "Test Moonshot"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>LinkedIn Account ID (GetLate)</Label>
+            <Input value={linkedinAccountId} onChange={(e) => setLinkedinAccountId(e.target.value)} placeholder="acc_... or your id" />
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">From GetLate dashboard after connecting LinkedIn.</div>
+          </div>
+
+          {message ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">{message}</div> : null}
+          {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">{error}</div> : null}
+
+          <div className="flex items-center justify-end border-t border-white/10 pt-6 mt-6">
+            <Button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="bg-indigo-600 text-white hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)] disabled:opacity-50 transition-all rounded-full px-8 py-6 text-base font-semibold"
+            >
+              {saving ? "Saving…" : "Save Settings"}
             </Button>
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Moonshot API key (Kimi 2.5)</Label>
-          <Input
-            value={moonshotApiKey}
-            onChange={(e) => setMoonshotApiKey(e.target.value)}
-            placeholder={state?.hasMoonshotKey ? "Saved (enter new to replace)" : "sk-..."}
-            autoComplete="off"
-          />
-          <div className="text-xs text-neutral-500 dark:text-neutral-400">Used only to generate drafts.</div>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => test("moonshot")} disabled={testing !== null}>
-              {testing === "moonshot" ? "Testing…" : "Test Moonshot"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>LinkedIn Account ID (GetLate)</Label>
-        <Input value={linkedinAccountId} onChange={(e) => setLinkedinAccountId(e.target.value)} placeholder="acc_... or your id" />
-        <div className="text-xs text-neutral-500 dark:text-neutral-400">From GetLate dashboard after connecting LinkedIn.</div>
-      </div>
-
-      {message ? <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">{message}</div> : null}
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">{error}</div> : null}
-
-      <div className="flex items-center justify-end">
-        <Button type="button" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save settings"}
-        </Button>
-      </div>
         </>
       )}
     </div>

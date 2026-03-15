@@ -242,47 +242,51 @@ export function DashboardClient() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-neutral-600 dark:text-neutral-400">Show:</span>
-        {(["all", "pending", "scheduled", "done"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              filter === f
-                ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
-                : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700",
-            )}
-          >
-            {f === "all" ? "All" : f === "pending" ? `Pending (${pending.length})` : f === "scheduled" ? `Scheduled (${scheduled.length})` : `Done (${done.length})`}
-          </button>
-        ))}
-        <span className="ml-2 text-neutral-400">|</span>
-        {(["all", "manual", "autopilot"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setSourceFilter(f)}
-            className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              sourceFilter === f
-                ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900"
-                : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
-            )}
-          >
-            {f === "all" ? "All" : f === "manual" ? "Manual" : "Autopilot"}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-3 bg-white/5 p-2 rounded-2xl w-fit border border-white/10 backdrop-blur-md">
+        <div className="flex bg-slate-900/50 rounded-xl p-1">
+          {(["all", "pending", "scheduled", "done"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-medium transition-all duration-300",
+                filter === f
+                  ? "bg-slate-700 text-white shadow-[0_0_10px_rgba(255,255,255,0.05)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5",
+              )}
+            >
+              {f === "all" ? "All" : f === "pending" ? `Pending (${pending.length})` : f === "scheduled" ? `Scheduled (${scheduled.length})` : `Done (${done.length})`}
+            </button>
+          ))}
+        </div>
+        <div className="h-6 w-px bg-white/10 mx-1"></div>
+        <div className="flex bg-slate-900/50 rounded-xl p-1">
+          {(["all", "manual", "autopilot"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setSourceFilter(f)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-300",
+                sourceFilter === f
+                  ? "bg-indigo-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.3)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5",
+              )}
+            >
+              {f === "all" ? "All" : f === "manual" ? "Manual" : "Autopilot"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {autopilotStatus?.enabled && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="overflow-hidden relative rounded-2xl border border-indigo-500/30 bg-indigo-900/20 p-5 shadow-[0_0_20px_rgba(79,70,229,0.1)]">
+          <div className="absolute top-0 left-0 w-1 bg-indigo-500 h-full shadow-[0_0_10px_rgba(79,70,229,1)]"></div>
+          <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
             <div>
-              <span className="font-medium text-amber-800 dark:text-amber-200">Autopilot on</span>
-              <span className="ml-2 text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-bold tracking-wide text-indigo-400">AUTOPILOT ON</span>
+              <span className="ml-3 text-sm text-indigo-200/70">
                 • {autopilotStatus.pendingTopicsInPool} topics in queue
                 {nextTopics.length > 0 && ` • Next: "${nextTopics[0].topic.slice(0, 40)}…"`}
               </span>
@@ -315,12 +319,18 @@ export function DashboardClient() {
       )}
 
       {filtered.length === 0 ? (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300">
-          {filter === "pending" && "No drafts pending review. "}
-          {filter === "scheduled" && "No scheduled posts. Approve a draft to schedule. "}
-          {filter === "done" && "No published or failed posts yet. "}
-          {filter === "all" && drafts.length === 0 && "No posts yet. "}
-          <a className="underline" href="/generate">Generate a draft</a>
+        <div className="rounded-2xl border border-white/5 bg-slate-900/30 p-10 text-center text-slate-400 flex flex-col items-center gap-3">
+          <div className="text-4xl opacity-50 mb-2">📭</div>
+          <p>
+            {filter === "pending" && "No drafts pending review. "}
+            {filter === "scheduled" && "No scheduled posts. Approve a draft to schedule. "}
+            {filter === "done" && "No published or failed posts yet. "}
+            {filter === "all" && drafts.length === 0 && "No posts yet. "}
+          </p>
+          <a className="text-indigo-400 hover:text-indigo-300 hover:underline mt-2 inline-flex items-center gap-1 font-medium" href="/generate">
+            Generate your first draft
+            <span>→</span>
+          </a>
         </div>
       ) : null}
 
@@ -332,17 +342,20 @@ export function DashboardClient() {
           const isScheduled = d.status === SCHEDULED_STATUS;
           const isDone = DONE_STATUSES.includes(d.status);
           return (
-            <div key={d.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+            <div key={d.id} className="group rounded-2xl border border-white/5 bg-[#141B2D] p-6 shadow-xl transition-all hover:border-white/10 hover:shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                    {d.postType} • {new Date(d.createdAt).toLocaleString()} •{" "}
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-2">
+                    <span className="bg-white/10 text-slate-300 px-2 py-0.5 rounded-full">{d.postType}</span>
+                    <span>• {new Date(d.createdAt).toLocaleString()}</span>
+                    <span>•</span>
                     <span
                       className={cn(
-                        d.status === "APPROVED" && "text-amber-700 dark:text-amber-300",
-                        isScheduled && "text-emerald-700 dark:text-emerald-300",
-                        d.status === "PUBLISHED" && "text-sky-700 dark:text-sky-300",
-                        d.status === "FAILED" && "text-red-600 dark:text-red-400",
+                        "px-2 py-0.5 rounded-full font-bold",
+                        d.status === "APPROVED" && "text-amber-400 bg-amber-400/10",
+                        isScheduled && "text-emerald-400 bg-emerald-400/10",
+                        d.status === "PUBLISHED" && "text-sky-400 bg-sky-400/10",
+                        d.status === "FAILED" && "text-red-400 bg-red-400/10",
                       )}
                     >
                       {d.status}
@@ -354,10 +367,12 @@ export function DashboardClient() {
                       <> • GetLate: {d.schedule.getlateStatus}</>
                     )}
                   </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm font-medium">{d.topic}</span>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-base font-semibold text-white">{d.topic}</span>
                     {d.isAutopilot && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">Autopilot</span>
+                      <span className="rounded-full bg-indigo-500/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-indigo-300 border border-indigo-500/20">
+                        🤖 Autopilot
+                      </span>
                     )}
                   </div>
                 </div>
@@ -389,16 +404,16 @@ export function DashboardClient() {
                         <Button
                           variant="outline"
                           size="sm"
-                        onClick={() => {
-                          setEditingId(d.id);
-                          setEditValue(d.content);
-                          setEditScheduledFor(
-                            isScheduled && d.schedule?.scheduledFor ? toDateTimeLocal(d.schedule.scheduledFor) : "",
-                          );
-                          setEditFirstComment(d.firstComment ?? "");
-                          setEditDisableLinkPreview(d.disableLinkPreview ?? false);
-                          setEditMediaUrls(parseMediaUrlsFromDraft(d.mediaUrls));
-                        }}
+                          onClick={() => {
+                            setEditingId(d.id);
+                            setEditValue(d.content);
+                            setEditScheduledFor(
+                              isScheduled && d.schedule?.scheduledFor ? toDateTimeLocal(d.schedule.scheduledFor) : "",
+                            );
+                            setEditFirstComment(d.firstComment ?? "");
+                            setEditDisableLinkPreview(d.disableLinkPreview ?? false);
+                            setEditMediaUrls(parseMediaUrlsFromDraft(d.mediaUrls));
+                          }}
                           disabled={isBusy}
                         >
                           Edit
@@ -409,7 +424,7 @@ export function DashboardClient() {
                           <Button variant="destructive" size="sm" onClick={() => discard(d.id)} disabled={isBusy}>
                             Discard
                           </Button>
-                          <Button variant="default" size="sm" onClick={() => approve(d.id)} disabled={isBusy}>
+                          <Button variant="default" size="sm" onClick={() => approve(d.id)} disabled={isBusy} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full">
                             {isBusy ? "Scheduling…" : d.status === "APPROVED" ? "Retry schedule" : "Approve & Schedule"}
                           </Button>
                         </>
@@ -510,8 +525,8 @@ export function DashboardClient() {
                 ) : (
                   <div
                     className={cn(
-                      "rounded-lg border border-neutral-200 bg-white p-4 text-[15px] leading-6 text-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50",
-                      "whitespace-pre-wrap",
+                      "rounded-xl bg-slate-900/50 border border-white/5 p-6 text-[15px] leading-relaxed text-slate-300",
+                      "whitespace-pre-wrap font-sans",
                     )}
                   >
                     {renderLinkedInText(d.content)}

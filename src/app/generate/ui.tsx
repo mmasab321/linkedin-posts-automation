@@ -94,14 +94,18 @@ export function GenerateForm() {
       </div>
 
       {error ? (
-        <Card className="border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
           {error}
-        </Card>
+        </div>
       ) : null}
 
-      <div className="flex items-center justify-end gap-3">
-        <Button type="submit" disabled={loading || !topic.trim() || !keyPoint.trim()}>
-          {loading ? "Generating…" : "Generate draft"}
+      <div className="flex items-center justify-end gap-3 pt-6 border-t border-white/10">
+        <Button
+          type="submit"
+          disabled={loading || !topic.trim() || !keyPoint.trim()}
+          className="bg-indigo-600 text-white hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)] disabled:opacity-50 transition-all rounded-full px-8 py-6 text-base font-semibold"
+        >
+          {loading ? "Generating…" : "Generate Draft"}
         </Button>
       </div>
     </form>

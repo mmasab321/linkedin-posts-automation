@@ -33,34 +33,33 @@ export function QuotaWidget({ className }: { className?: string }) {
   const warning = used >= 16 && used < max;
 
   return (
-    <div className={cn("rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950", className)}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="text-sm font-medium">Monthly quota</div>
-        <div className="text-sm tabular-nums text-neutral-600 dark:text-neutral-400">
-          {used}/{max}
+    <div className={cn("rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-md", className)}>
+      <div className="flex items-center justify-between gap-4 mb-2">
+        <h3 className="text-sm font-semibold tracking-tight text-slate-100">Monthly Quota</h3>
+        <div className="rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-400">
+          {used} / {max}
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-[repeat(20,minmax(0,1fr))] gap-1">
-        {Array.from({ length: max }).map((_, i) => {
-          const filled = i < used;
-          return (
-            <div
-              key={i}
-              className={cn(
-                "h-2 rounded-sm border",
-                filled
-                  ? "border-neutral-900 bg-neutral-900 dark:border-neutral-50 dark:bg-neutral-50"
-                  : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900",
-              )}
-            />
-          );
-        })}
+      <div className="mt-6 flex flex-col gap-2">
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-800/50">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-1000 ease-out",
+              warning ? "bg-amber-500" : used >= max ? "bg-red-500" : "bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+            )}
+            style={{ width: `${Math.min(100, (used / max) * 100)}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[11px] font-medium uppercase tracking-wider text-slate-500 mt-1">
+          <span>0 posts</span>
+          <span>{max} posts</span>
+        </div>
       </div>
 
-      {error ? <div className="mt-2 text-xs text-red-600">{error}</div> : null}
-      {warning ? <div className="mt-2 text-xs text-amber-600">{remaining} posts left</div> : null}
-      {used >= max ? <div className="mt-2 text-xs text-red-600">Quota full — next month unlocks automatically.</div> : null}
+      {error ? <div className="mt-4 rounded-md bg-red-500/10 p-2 text-xs text-red-400">{error}</div> : null}
+      {warning ? <div className="mt-4 rounded-md bg-amber-500/10 p-2 text-xs text-amber-400">{remaining} posts left</div> : null}
+      {used >= max ? <div className="mt-4 rounded-md bg-red-500/10 p-2 text-xs text-red-400">Quota full — next month unlocks automatically.</div> : null}
     </div>
   );
 }
