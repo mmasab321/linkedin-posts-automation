@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const BodySchema = z.object({
   scheduleTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:mm
   maxAutoPerMonth: z.number().int().min(1).max(15).optional(),
-  validationRules: z.record(z.unknown()).optional(),
+  validationRules: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function GET() {
