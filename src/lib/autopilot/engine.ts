@@ -1,11 +1,11 @@
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/prisma";
+import { getApprovalEmailTo, sendApprovalEmail } from "@/lib/email";
 import { getConfig } from "@/lib/config";
-import { createGetLateClient } from "@/lib/getlate";
 import { createMoonshotClient } from "@/lib/moonshot";
-import { inferMediaType, parseMediaUrls } from "@/lib/media-urls";
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { toPlainLinkedInText } from "@/lib/text";
 import { textSimilarity, validateContent } from "@/lib/autopilot/validation";
@@ -14,7 +14,7 @@ import { applyDiversityOverride, detectPostTypeFromTopic, type PostType } from "
 const SINGLETON_CONFIG_ID = "default";
 
 export type AutopilotRunResult =
-  | { ok: true; action: "SCHEDULED" | "PENDING_REVIEW"; draftId: string; topic: string; score: number }
+  | { ok: true; action: "SCHEDULED" | "PENDING_REVIEW" | "PENDING_APPROVAL"; draftId: string; topic: string; score: number }
   | { ok: true; action: "SKIPPED"; reason: string }
   | { ok: false; action: "FAILED"; reason: string; disableAutopilot?: boolean };
 
@@ -125,12 +125,13 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
     },
   });
   const usedCount = quota?.usedCount ?? 0;
-  if (usedCount >= 15) {
+  const maxCount = quota?.maxCount ?? 20;
+  if (usedCount >= maxCount) {
     await prisma.autopilotConfig.update({
       where: { id: config.id },
       data: { enabled: false },
     });
-    return { ok: false, action: "FAILED", reason: "Monthly quota full (15/15)", disableAutopilot: true };
+    return { ok: false, action: "FAILED", reason: `Monthly quota full (${maxCount}/${maxCount})`, disableAutopilot: true };
   }
 
   const rules = (config.validationRules as Record<string, unknown>) || {};
@@ -251,7 +252,7 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
 
   const draft = await prisma.postDraft.create({
     data: {
-      status: validation.score >= minScore ? "APPROVED" : "PENDING_REVIEW",
+      status: validation.score >= minScore ? "PENDING_REVIEW" : "PENDING_REVIEW",
       content,
       topic,
       postType,
@@ -265,61 +266,46 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
     data: { status: "USED", usedAt: now },
   });
 
+  // Email approval flow: do not schedule with GetLate until user approves via email (safety gate)
   if (validation.score >= minScore) {
-    try {
-      const late = createGetLateClient(getlateKey!);
-      const mediaUrls = parseMediaUrls(null);
-      const body: Record<string, unknown> = {
-        content: draft.content,
-        publishNow: false,
-        scheduledFor: slot.toISOString(),
-        platforms: [
-          {
-            platform: "linkedin",
-            accountId: linkedinAccountId!,
-          },
-        ],
-      };
-      if (mediaUrls.length > 0) {
-        (body as any).mediaItems = mediaUrls.map((url) => ({ url, type: inferMediaType(url) }));
-      }
-      const { data } = await late.posts.createPost({ body: body as any });
+    const token = randomBytes(32).toString("hex");
+    const approvalTo = getApprovalEmailTo();
 
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      await prisma.$transaction(async (tx) => {
-        await tx.scheduleSlot.create({
-          data: {
-            draftId: draft.id,
-            scheduledFor: slot,
-            getlatePostId: (data as any)?.post?._id ?? (data as any)?._id ?? null,
-            getlateStatus: (data as any)?.post?.status ?? (data as any)?.status ?? "pending",
-          },
-        });
-        await tx.postDraft.update({
-          where: { id: draft.id },
-          data: { status: "SCHEDULED" },
-        });
-        await tx.monthlyQuota.upsert({
-          where: { year_month: { year, month } },
-          create: { year, month, usedCount: 1, maxCount: 15 },
-          update: { usedCount: { increment: 1 } },
-        });
-        await tx.autopilotLog.create({
-          data: { action: "SCHEDULED", topic, draftId: draft.id, validationScore: validation.score },
-        });
-        await tx.autopilotConfig.update({
-          where: { id: config.id },
-          data: { lastRunAt: now, consecutiveFailures: 0 },
-        });
+    await prisma.postDraft.update({
+      where: { id: draft.id },
+      data: {
+        approvalToken: token,
+        approvalStatus: "pending",
+        approvalSentAt: now,
+        scheduledFor: slot,
+      },
+    });
+
+    if (approvalTo) {
+      const emailResult = await sendApprovalEmail({
+        to: approvalTo,
+        draftId: draft.id,
+        token,
+        content: draft.content,
+        topic,
+        scheduledFor: slot,
       });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "GetLate error";
-      await prisma.autopilotLog.create({ data: { action: "FAILED", topic, draftId: draft.id, error: msg } });
-      await prisma.postDraft.update({ where: { id: draft.id }, data: { status: "PENDING_REVIEW" } });
-      return { ok: false, action: "FAILED", reason: msg };
+      if (!emailResult.ok) {
+        await prisma.autopilotLog.create({
+          data: { action: "FAILED", topic, draftId: draft.id, error: `Email: ${emailResult.error}` },
+        });
+      }
     }
-    return { ok: true, action: "SCHEDULED", draftId: draft.id, topic, score: validation.score };
+
+    await prisma.autopilotLog.create({
+      data: { action: "VALIDATED", topic, draftId: draft.id, validationScore: validation.score },
+    });
+    await prisma.autopilotConfig.update({
+      where: { id: config.id },
+      data: { lastRunAt: now, consecutiveFailures: 0 },
+    });
+
+    return { ok: true, action: "PENDING_APPROVAL", draftId: draft.id, topic, score: validation.score };
   }
 
   return { ok: true, action: "PENDING_REVIEW", draftId: draft.id, topic, score: validation.score };

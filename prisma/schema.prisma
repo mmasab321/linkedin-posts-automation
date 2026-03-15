@@ -24,7 +24,7 @@ model MonthlyQuota {
   year      Int
   month     Int // 0-11
   usedCount Int @default(0)
-  maxCount  Int @default(15)
+  maxCount  Int @default(20)
 
   @@unique([year, month])
 }
@@ -41,6 +41,10 @@ model PostDraft {
   disableLinkPreview Boolean?    @default(false) // Disable link preview for URLs in content
   mediaUrls          String? // JSON array of public media URLs for images/videos/PDF
   isAutopilot        Boolean     @default(false) // true when created by autopilot
+  approvalToken      String? // one-time token for email approve/reject
+  approvalStatus     String? // pending | approved | rejected | expired
+  approvalSentAt     DateTime?
+  scheduledFor       DateTime? // intended publish time when pending email approval
   createdAt          DateTime    @default(now())
   schedule           ScheduleSlot?
 }

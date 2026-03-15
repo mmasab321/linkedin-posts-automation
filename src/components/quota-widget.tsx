@@ -28,9 +28,9 @@ export function QuotaWidget({ className }: { className?: string }) {
   }, []);
 
   const used = quota?.usedCount ?? 0;
-  const max = quota?.maxCount ?? 15;
+  const max = quota?.maxCount ?? 20;
   const remaining = Math.max(0, max - used);
-  const warning = used >= 12 && used < max;
+  const warning = used >= 16 && used < max;
 
   return (
     <div className={cn("rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950", className)}>
@@ -41,7 +41,7 @@ export function QuotaWidget({ className }: { className?: string }) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
+      <div className="mt-3 grid grid-cols-[repeat(20,minmax(0,1fr))] gap-1">
         {Array.from({ length: max }).map((_, i) => {
           const filled = i < used;
           return (

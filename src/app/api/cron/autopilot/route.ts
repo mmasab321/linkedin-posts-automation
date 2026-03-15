@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   if (result.ok && result.action === "SKIPPED") {
     return NextResponse.json({ ok: true, skipped: true, reason: result.reason });
   }
-  if (result.ok && (result.action === "SCHEDULED" || result.action === "PENDING_REVIEW")) {
+  if (result.ok && (result.action === "SCHEDULED" || result.action === "PENDING_REVIEW" || result.action === "PENDING_APPROVAL")) {
     return NextResponse.json({
       ok: true,
       action: result.action,
