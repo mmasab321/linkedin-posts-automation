@@ -167,18 +167,24 @@ export function AutopilotTab() {
           aria-checked={enabled}
           onClick={toggleEnabled}
           disabled={toggling}
-          className={cn(
-            "relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2",
-            enabled ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-600",
-          )}
+          className="inline-flex items-center gap-2"
         >
-          <span className="sr-only">Enable Autopilot</span>
           <span
             className={cn(
-              "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
-              enabled ? "translate-x-5" : "translate-x-1",
+              "relative inline-flex h-7 w-12 flex-shrink-0 rounded-full transition-colors duration-200",
+              enabled ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-600",
             )}
-          />
+          >
+            <span
+              className={cn(
+                "absolute top-[2px] h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200",
+                enabled ? "left-[2px] translate-x-5" : "left-[2px] translate-x-0",
+              )}
+            />
+          </span>
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            {enabled ? "On" : "Off"}
+          </span>
         </button>
       </div>
 
