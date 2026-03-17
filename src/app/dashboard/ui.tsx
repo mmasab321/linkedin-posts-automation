@@ -71,6 +71,18 @@ export function DashboardClient() {
   const [sourceFilter, setSourceFilter] = React.useState<"all" | "manual" | "autopilot">("all");
   const [autopilotStatus, setAutopilotStatus] = React.useState<{ enabled: boolean; pendingTopicsInPool: number } | null>(null);
   const [nextTopics, setNextTopics] = React.useState<{ topic: string; id: string }[]>([]);
+  const [topicPile, setTopicPile] = React.useState<{ id: string; title: string }[]>([]);
+  const [nextPostData, setNextPostData] = React.useState<{
+    nextSlot: string | null;
+    nextPost: {
+      id: string;
+      topic: string;
+      content: string;
+      approvalStatus: string;
+      scheduledFor: string | null;
+    } | null;
+    message?: string;
+  } | null>(null);
   const [pausing, setPausing] = React.useState(false);
 
   async function load() {
@@ -92,9 +104,11 @@ export function DashboardClient() {
 
   async function loadAutopilot() {
     try {
-      const [statusRes, topicsRes] = await Promise.all([
+      const [statusRes, topicsRes, pileRes, nextPostRes] = await Promise.all([
         fetch("/api/autopilot/status"),
         fetch("/api/admin/topics?status=PENDING&limit=3"),
+        fetch("/api/admin/topics?status=PENDING&limit=50"),
+        fetch("/api/autopilot/next-post"),
       ]);
       if (statusRes.ok) {
         const j = await statusRes.json();
@@ -103,6 +117,18 @@ export function DashboardClient() {
       if (topicsRes.ok) {
         const j = await topicsRes.json();
         setNextTopics((j.topics ?? []).map((t: { id: string; title: string }) => ({ id: t.id, topic: t.title })));
+      }
+      if (pileRes.ok) {
+        const j = await pileRes.json();
+        setTopicPile((j.topics ?? []).map((t: { id: string; title: string }) => ({ id: t.id, title: t.title })));
+      }
+      if (nextPostRes.ok) {
+        const j = await nextPostRes.json();
+        setNextPostData({
+          nextSlot: j.nextSlot ?? null,
+          nextPost: j.nextPost ?? null,
+          message: j.message,
+        });
       }
     } catch {
       // ignore
@@ -314,6 +340,56 @@ export function DashboardClient() {
                 <li key={t.id}>{t.topic.slice(0, 60)}{t.topic.length > 60 ? "…" : ""}</li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {/* RSS / topic pile: titles from feed */}
+      {topicPile.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-slate-900/30 p-4">
+          <h3 className="text-sm font-semibold text-slate-200 mb-2">RSS / topic queue ({topicPile.length} titles)</h3>
+          <ul className="max-h-48 overflow-y-auto space-y-1 text-sm text-slate-300">
+            {topicPile.map((t) => (
+              <li key={t.id} className="truncate border-b border-white/5 pb-1 last:border-0">
+                {t.title}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Next day's post — 24h early with status */}
+      {nextPostData && (nextPostData.nextSlot || nextPostData.nextPost) && (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-950/20 p-4">
+          <h3 className="text-sm font-semibold text-amber-200 mb-2">Next day&apos;s post (24h early)</h3>
+          <p className="text-xs text-amber-200/70 mb-2">
+            Slot: {nextPostData.nextSlot
+              ? new Date(nextPostData.nextSlot).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" })
+              : "—"}
+          </p>
+          {nextPostData.nextPost ? (
+            <div className="space-y-2">
+              <p className="font-medium text-white">{nextPostData.nextPost.topic}</p>
+              <p className="text-xs text-slate-400 line-clamp-2">{nextPostData.nextPost.content}</p>
+              <span
+                className={cn(
+                  "inline-block px-2 py-0.5 rounded-full text-xs font-medium",
+                  nextPostData.nextPost.approvalStatus === "approved" && "bg-emerald-500/20 text-emerald-300",
+                  nextPostData.nextPost.approvalStatus === "pending" && "bg-amber-500/20 text-amber-300",
+                  nextPostData.nextPost.approvalStatus === "rejected" && "bg-red-500/20 text-red-300",
+                )}
+              >
+                {nextPostData.nextPost.approvalStatus === "approved"
+                  ? "Approved"
+                  : nextPostData.nextPost.approvalStatus === "pending"
+                    ? "Pending your approval"
+                    : nextPostData.nextPost.approvalStatus === "rejected"
+                      ? "Rejected"
+                      : nextPostData.nextPost.approvalStatus}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">{nextPostData.message ?? "No post yet for this slot."}</p>
           )}
         </div>
       )}
