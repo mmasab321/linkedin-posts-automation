@@ -2,17 +2,20 @@ import { NextResponse } from "next/server";
 
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
 /**
  * Returns the post that will go out at the next slot (next day / 24h from now)
  * and its approval status (pending, approved, rejected).
- * So you can see "tomorrow's article" 24h early with status.
  */
 export async function GET() {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const now = new Date();
-  const nextSlot = await getNextAvailableSlot(now);
+  const nextSlot = await getNextAvailableSlot(userId, now);
   if (!nextSlot) {
     return NextResponse.json({
       nextSlot: null,
@@ -25,15 +28,13 @@ export async function GET() {
   slotStart.setSeconds(0, 0);
   const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000); // 1h window
 
-  // Already scheduled: draft with ScheduleSlot at next slot
   const scheduled = await prisma.scheduleSlot.findFirst({
     where: {
       scheduledFor: { gte: slotStart, lt: slotEnd },
+      draft: { userId },
     },
     orderBy: { scheduledFor: "asc" },
-    include: {
-      draft: true,
-    },
+    include: { draft: true },
   });
 
   if (scheduled) {
@@ -51,9 +52,9 @@ export async function GET() {
     });
   }
 
-  // Pending email approval: draft with scheduledFor = next slot, no ScheduleSlot yet
   const pending = await prisma.postDraft.findFirst({
     where: {
+      userId,
       scheduledFor: { gte: slotStart, lt: slotEnd },
       schedule: null,
       status: { in: ["PENDING_REVIEW", "APPROVED"] },

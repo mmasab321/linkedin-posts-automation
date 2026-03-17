@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,9 @@ const BodySchema = z.object({
 });
 
 export async function GET() {
-  const config = await getOrCreateAutopilotConfig();
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const config = await getOrCreateAutopilotConfig(userId);
   return NextResponse.json({
     scheduleTime: config.scheduleTime,
     maxAutoPerMonth: config.maxAutoPerMonth,
@@ -23,10 +26,12 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const config = await getOrCreateAutopilotConfig();
+  const config = await getOrCreateAutopilotConfig(userId);
   const updated = await prisma.autopilotConfig.update({
     where: { id: config.id },
     data: {

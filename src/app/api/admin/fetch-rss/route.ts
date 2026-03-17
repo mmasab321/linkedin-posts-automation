@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       });
 
       const recentTopics = await prisma.topicPool.findMany({
-        where: { createdAt: { gte: since } },
+        where: { sourceId: src.id, createdAt: { gte: since } },
         select: { title: true },
       });
 

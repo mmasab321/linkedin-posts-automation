@@ -4,12 +4,15 @@ import path from "node:path";
 
 import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
+import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
 export async function POST() {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const moonshotKey = await getConfig("MOONSHOT_API_KEY");
+    const moonshotKey = await getConfig("MOONSHOT_API_KEY", userId);
     if (!moonshotKey) {
       return NextResponse.json({ error: "Moonshot API key not set." }, { status: 400 });
     }

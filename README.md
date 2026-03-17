@@ -1,6 +1,12 @@
 # LinkedIn Auto-Poster
 
-Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedule via GetLate. 15 posts/month, 48h spacing, full queue on this platform.
+Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedule via GetLate. Multi-user: each user has their own drafts, settings, and quota (20 posts/month). Sign up with email/password to use the app.
+
+## Authentication
+
+- **Sign up** at `/signup` (email + password, min 8 characters). Each user gets their own API keys (Settings), drafts, autopilot config, and topic pool.
+- **Sign in** at `/signin`. Protected routes (Dashboard, Generate, Settings) require a logged-in session.
+- **Required env:** Set **`AUTH_SECRET`** (e.g. `openssl rand -base64 32`) for JWT signing. Without it, NextAuth may refuse to start in production.
 
 ## Deploy on Vercel
 
@@ -10,8 +16,9 @@ The app uses **PostgreSQL** (SQLite cannot run on Vercel’s serverless environm
    - [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres) (Dashboard → Storage → Create Database), or  
    - [Neon](https://neon.tech) (free tier), or any Postgres host.
 
-2. **Environment variable**
-   - In your Vercel project → **Settings → Environment Variables**, add **`DATABASE_URL`** with your Postgres connection string (e.g. `postgresql://user:pass@host:5432/dbname?sslmode=require`).
+2. **Environment variables**
+   - **`DATABASE_URL`** – Postgres connection string (e.g. `postgresql://user:pass@host:5432/dbname?sslmode=require`).
+   - **`AUTH_SECRET`** – Secret for session signing (e.g. run `openssl rand -base64 32` and paste the result).
 
 3. **Build command** (optional override)
    - `npm install && npx prisma generate && npx prisma migrate deploy && npm run build`  

@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
     return htmlPage("Error", "Scheduled time was missing. Post was not published.");
   }
 
-  const getlateKey = await getConfig("GETLATE_API_KEY");
-  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID");
+  const getlateKey = await getConfig("GETLATE_API_KEY", draft.userId);
+  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID", draft.userId);
   if (!getlateKey || !linkedinAccountId) {
     return htmlPage("Error", "GetLate is not configured. Post was not published. Please approve from the app.");
   }
@@ -104,8 +104,8 @@ export async function GET(req: NextRequest) {
         data: { status: "SCHEDULED", approvalStatus: "approved", approvalToken: null },
       });
       await tx.monthlyQuota.upsert({
-        where: { year_month: { year, month } },
-        create: { year, month, usedCount: 1, maxCount: 20 },
+        where: { userId_year_month: { userId: draft.userId, year, month } },
+        create: { userId: draft.userId, year, month, usedCount: 1, maxCount: 20 },
         update: { usedCount: { increment: 1 } },
       });
     });

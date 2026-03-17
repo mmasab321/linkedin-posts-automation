@@ -5,14 +5,18 @@ import { getConfig } from "@/lib/config";
 import { createGetLateClient } from "@/lib/getlate";
 import { inferMediaType, parseMediaUrls } from "@/lib/media-urls";
 import { getNextAvailableSlot } from "@/lib/scheduling";
+import { requireUserId } from "@/lib/session";
 import { LateApiError, RateLimitError } from "@getlatedev/node";
 
 export const runtime = "nodejs";
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await ctx.params;
 
-  const draft = await prisma.postDraft.findUnique({ where: { id }, include: { schedule: true } });
+  const draft = await prisma.postDraft.findFirst({ where: { id, userId }, include: { schedule: true } });
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (draft.status === "DISCARDED") {
     return NextResponse.json({ error: "Draft discarded" }, { status: 400 });
@@ -21,13 +25,13 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "Already scheduled" }, { status: 400 });
   }
 
-  const slot = await getNextAvailableSlot(new Date());
+  const slot = await getNextAvailableSlot(userId, new Date());
   if (!slot) {
     return NextResponse.json({ error: "Monthly quota full (20/20)." }, { status: 400 });
   }
 
-  const getlateKey = await getConfig("GETLATE_API_KEY");
-  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID");
+  const getlateKey = await getConfig("GETLATE_API_KEY", userId);
+  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID", userId);
   if (!getlateKey || !linkedinAccountId) {
     return NextResponse.json(
       { error: "GetLate API key or LinkedIn Account ID not set. Add them in Settings." },
@@ -77,8 +81,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       const month = now.getMonth();
 
       const quota = await tx.monthlyQuota.upsert({
-        where: { year_month: { year, month } },
-        create: { year, month, usedCount: 0, maxCount: 20 },
+        where: { userId_year_month: { userId, year, month } },
+        create: { userId, year, month, usedCount: 0, maxCount: 20 },
         update: {},
       });
 

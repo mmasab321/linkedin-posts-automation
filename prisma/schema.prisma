@@ -13,24 +13,49 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?   // for credentials; null if OAuth-only
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  configs           Config[]
+  monthlyQuotas     MonthlyQuota[]
+  postDrafts        PostDraft[]
+  autopilotConfigs  AutopilotConfig[]
+  contentSources    ContentSource[]
+  autopilotLogs     AutopilotLog[]
+}
+
 model Config {
-  id    String @id @default(cuid())
-  key   String @unique // GETLATE_API_KEY, MOONSHOT_API_KEY, LINKEDIN_ACCOUNT_ID
-  value String
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key    String // GETLATE_API_KEY, MOONSHOT_API_KEY, LINKEDIN_ACCOUNT_ID
+  value  String
+
+  @@unique([userId, key])
 }
 
 model MonthlyQuota {
   id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   year      Int
   month     Int // 0-11
   usedCount Int @default(0)
   maxCount  Int @default(20)
 
-  @@unique([year, month])
+  @@unique([userId, year, month])
 }
 
 model PostDraft {
   id                 String      @id @default(cuid())
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   status             DraftStatus @default(PENDING_REVIEW)
   content            String // The LinkedIn text
   topic              String
@@ -69,21 +94,25 @@ model ScheduleSlot {
 
 // --- Autopilot (premium) ---
 model AutopilotConfig {
-  id              String    @id @default(cuid())
-  enabled         Boolean   @default(false)
-  scheduleTime    String    @default("09:00") // 24h format HH:mm
-  maxAutoPerMonth Int       @default(10)
-  lastRunAt       DateTime?
-  nextScheduledAt DateTime?
-  validationRules Json      @default("{}") // strict/balanced/relaxed, thresholds
-  consecutiveFailures Int   @default(0)
-  pausedUntil     DateTime? // manual pause or post-within-6h
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled             Boolean   @default(false)
+  scheduleTime        String    @default("09:00") // 24h format HH:mm
+  maxAutoPerMonth     Int       @default(10)
+  lastRunAt           DateTime?
+  nextScheduledAt     DateTime?
+  validationRules     Json      @default("{}") // strict/balanced/relaxed, thresholds
+  consecutiveFailures Int       @default(0)
+  pausedUntil         DateTime? // manual pause or post-within-6h
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model ContentSource {
   id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        String   // RSS, EVERGREEN, TRENDING
   url         String?
   title       String
@@ -109,6 +138,8 @@ model TopicPool {
 
 model AutopilotLog {
   id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
   action          String   // GENERATED, VALIDATED, SCHEDULED, FAILED, SKIPPED
   topic           String

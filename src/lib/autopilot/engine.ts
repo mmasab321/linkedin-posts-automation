@@ -11,8 +11,6 @@ import { toPlainLinkedInText } from "@/lib/text";
 import { textSimilarity, validateContent } from "@/lib/autopilot/validation";
 import { applyDiversityOverride, detectPostTypeFromTopic, type PostType } from "@/lib/autopilot/type-detection";
 
-const SINGLETON_CONFIG_ID = "default";
-
 export type AutopilotRunResult =
   | { ok: true; action: "SCHEDULED" | "PENDING_REVIEW" | "PENDING_APPROVAL"; draftId: string; topic: string; score: number }
   | { ok: true; action: "SKIPPED"; reason: string }
@@ -23,12 +21,12 @@ async function getSystemPrompt(): Promise<string> {
   return readFile(p, "utf8");
 }
 
-export async function getOrCreateAutopilotConfig() {
-  let config = await prisma.autopilotConfig.findFirst();
+export async function getOrCreateAutopilotConfig(userId: string) {
+  let config = await prisma.autopilotConfig.findUnique({ where: { userId } });
   if (!config) {
     config = await prisma.autopilotConfig.create({
       data: {
-        id: SINGLETON_CONFIG_ID,
+        userId,
         enabled: false,
         scheduleTime: "09:00",
         maxAutoPerMonth: 10,
@@ -40,17 +38,16 @@ export async function getOrCreateAutopilotConfig() {
 }
 
 /** Pick next topic: TopicPool PENDING by priorityBoost DESC, createdAt ASC; or from evergreen. */
-export async function pickNextTopic(): Promise<{ topic: string; topicId: string; sourceId: string } | null> {
+export async function pickNextTopic(userId: string): Promise<{ topic: string; topicId: string; sourceId: string } | null> {
   const topic = await prisma.topicPool.findFirst({
-    where: { status: "PENDING" },
+    where: { status: "PENDING", source: { userId } },
     orderBy: [{ priorityBoost: "desc" }, { createdAt: "asc" }],
     include: { source: true },
   });
   if (topic) return { topic: topic.title, topicId: topic.id, sourceId: topic.sourceId };
 
-  // Fallback: evergreen sources
   const evergreen = await prisma.contentSource.findMany({
-    where: { type: "EVERGREEN", isActive: true },
+    where: { userId, type: "EVERGREEN", isActive: true },
     orderBy: { priority: "desc" },
     take: 20,
   });
@@ -71,10 +68,9 @@ export async function pickNextTopic(): Promise<{ topic: string; topicId: string;
   return null;
 }
 
-/** Last N published/scheduled post types for diversity. */
-async function getRecentPostTypes(limit: number): Promise<PostType[]> {
+async function getRecentPostTypes(userId: string, limit: number): Promise<PostType[]> {
   const drafts = await prisma.postDraft.findMany({
-    where: { status: { in: ["SCHEDULED", "PUBLISHED"] }, isAutopilot: true },
+    where: { userId, status: { in: ["SCHEDULED", "PUBLISHED"] }, isAutopilot: true },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: { postType: true },
@@ -82,10 +78,9 @@ async function getRecentPostTypes(limit: number): Promise<PostType[]> {
   return drafts.map((d) => d.postType as PostType);
 }
 
-/** Last N post contents for similarity check. */
-async function getRecentContents(limit: number): Promise<string[]> {
+async function getRecentContents(userId: string, limit: number): Promise<string[]> {
   const drafts = await prisma.postDraft.findMany({
-    where: { status: { in: ["SCHEDULED", "PUBLISHED"] } },
+    where: { userId, status: { in: ["SCHEDULED", "PUBLISHED"] } },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: { content: true },
@@ -93,10 +88,9 @@ async function getRecentContents(limit: number): Promise<string[]> {
   return drafts.map((d) => d.content);
 }
 
-/** Check if topic is too similar to recent topics (avoid duplicate). */
-async function isTopicDuplicate(topic: string, threshold = 0.8): Promise<boolean> {
+async function isTopicDuplicate(userId: string, topic: string, threshold = 0.8): Promise<boolean> {
   const recent = await prisma.topicPool.findMany({
-    where: { status: "USED" },
+    where: { status: "USED", source: { userId } },
     orderBy: { usedAt: "desc" },
     take: 30,
     select: { title: true },
@@ -107,8 +101,8 @@ async function isTopicDuplicate(topic: string, threshold = 0.8): Promise<boolean
   return false;
 }
 
-export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
-  const config = await getOrCreateAutopilotConfig();
+export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResult> {
+  const config = await getOrCreateAutopilotConfig(userId);
   if (!config.enabled) {
     return { ok: true, action: "SKIPPED", reason: "Autopilot disabled" };
   }
@@ -119,10 +113,7 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
   }
 
   const quota = await prisma.monthlyQuota.findFirst({
-    where: {
-      year: now.getFullYear(),
-      month: now.getMonth(),
-    },
+    where: { userId, year: now.getFullYear(), month: now.getMonth() },
   });
   const usedCount = quota?.usedCount ?? 0;
   const maxCount = quota?.maxCount ?? 20;
@@ -139,6 +130,7 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
   const maxAuto = config.maxAutoPerMonth ?? 10;
   const autopilotUsedThisMonth = await prisma.postDraft.count({
     where: {
+      userId,
       isAutopilot: true,
       createdAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) },
       status: { in: ["SCHEDULED", "PUBLISHED"] },
@@ -148,41 +140,41 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
     return { ok: true, action: "SKIPPED", reason: `Max auto posts this month (${maxAuto}) reached` };
   }
 
-  const slot = await getNextAvailableSlot(now);
+  const slot = await getNextAvailableSlot(userId, now);
   if (!slot) {
     return { ok: true, action: "SKIPPED", reason: "No available slot (quota or 48h)" };
   }
 
-  const topicResult = await pickNextTopic();
+  const topicResult = await pickNextTopic(userId);
   if (!topicResult) {
     await prisma.autopilotLog.create({
-      data: { action: "SKIPPED", topic: "(none)", error: "No topics in pool" },
+      data: { userId, action: "SKIPPED", topic: "(none)", error: "No topics in pool" },
     });
     return { ok: true, action: "SKIPPED", reason: "No topics in pool" };
   }
 
   const { topic, topicId } = topicResult;
-  if (await isTopicDuplicate(topic)) {
+  if (await isTopicDuplicate(userId, topic)) {
     await prisma.topicPool.update({ where: { id: topicId }, data: { status: "DISCARDED" } });
     await prisma.autopilotLog.create({
-      data: { action: "SKIPPED", topic, error: "Duplicate topic" },
+      data: { userId, action: "SKIPPED", topic, error: "Duplicate topic" },
     });
     return { ok: true, action: "SKIPPED", reason: "Topic too similar to recent" };
   }
 
-  const moonshotKey = await getConfig("MOONSHOT_API_KEY");
-  const getlateKey = await getConfig("GETLATE_API_KEY");
-  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID");
+  const moonshotKey = await getConfig("MOONSHOT_API_KEY", userId);
+  const getlateKey = await getConfig("GETLATE_API_KEY", userId);
+  const linkedinAccountId = await getConfig("LINKEDIN_ACCOUNT_ID", userId);
   if (!moonshotKey) {
-    await prisma.autopilotLog.create({ data: { action: "FAILED", topic, error: "Moonshot API key not set" } });
+    await prisma.autopilotLog.create({ data: { userId, action: "FAILED", topic, error: "Moonshot API key not set" } });
     return { ok: false, action: "FAILED", reason: "Moonshot API key not set" };
   }
   if (!getlateKey || !linkedinAccountId) {
-    await prisma.autopilotLog.create({ data: { action: "FAILED", topic, error: "GetLate/LinkedIn not configured" } });
+    await prisma.autopilotLog.create({ data: { userId, action: "FAILED", topic, error: "GetLate/LinkedIn not configured" } });
     return { ok: false, action: "FAILED", reason: "GetLate or LinkedIn Account ID not set" };
   }
 
-  const recentTypes = await getRecentPostTypes(5);
+  const recentTypes = await getRecentPostTypes(userId, 5);
   let postType = detectPostTypeFromTopic(topic);
   postType = applyDiversityOverride(postType, recentTypes, 2);
 
@@ -190,7 +182,7 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
   try {
     systemPrompt = await getSystemPrompt();
   } catch {
-    await prisma.autopilotLog.create({ data: { action: "FAILED", topic, error: "Missing prompt file" } });
+    await prisma.autopilotLog.create({ data: { userId, action: "FAILED", topic, error: "Missing prompt file" } });
     return { ok: false, action: "FAILED", reason: "Missing linkedin-post-generator.md" };
   }
 
@@ -215,16 +207,17 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
     raw = completion.choices?.[0]?.message?.content ?? "";
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Kimi error";
-    await prisma.autopilotLog.create({ data: { action: "FAILED", topic, error: msg } });
+    await prisma.autopilotLog.create({ data: { userId, action: "FAILED", topic, error: msg } });
     return { ok: false, action: "FAILED", reason: msg };
   }
 
   const content = toPlainLinkedInText(raw);
-  const recentContents = await getRecentContents(10);
+  const recentContents = await getRecentContents(userId, 10);
   const validation = validateContent(content, recentContents, { minScoreToApprove: minScore });
 
   await prisma.autopilotLog.create({
     data: {
+      userId,
       action: "VALIDATED",
       topic,
       validationScore: validation.score,
@@ -252,7 +245,8 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
 
   const draft = await prisma.postDraft.create({
     data: {
-      status: validation.score >= minScore ? "PENDING_REVIEW" : "PENDING_REVIEW",
+      userId,
+      status: "PENDING_REVIEW",
       content,
       topic,
       postType,
@@ -292,13 +286,13 @@ export async function runAutopilotOnce(): Promise<AutopilotRunResult> {
       });
       if (!emailResult.ok) {
         await prisma.autopilotLog.create({
-          data: { action: "FAILED", topic, draftId: draft.id, error: `Email: ${emailResult.error}` },
+          data: { userId, action: "FAILED", topic, draftId: draft.id, error: `Email: ${emailResult.error}` },
         });
       }
     }
 
     await prisma.autopilotLog.create({
-      data: { action: "VALIDATED", topic, draftId: draft.id, validationScore: validation.score },
+      data: { userId, action: "VALIDATED", topic, draftId: draft.id, validationScore: validation.score },
     });
     await prisma.autopilotConfig.update({
       where: { id: config.id },

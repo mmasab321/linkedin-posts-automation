@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,10 @@ const CreateSchema = z.object({
 });
 
 export async function GET() {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sources = await prisma.contentSource.findMany({
+    where: { userId },
     orderBy: { priority: "desc" },
     include: { _count: { select: { topics: true } } },
   });
@@ -22,10 +26,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const parsed = CreateSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const data = {
+    userId,
     type: parsed.data.type,
     url: parsed.data.url ?? null,
     title: parsed.data.title,

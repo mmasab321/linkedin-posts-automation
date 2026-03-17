@@ -8,6 +8,7 @@ import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
 import { toPlainLinkedInText } from "@/lib/text";
 import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
+import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -23,12 +24,15 @@ function getPromptPath() {
 }
 
 export async function POST(req: Request) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const parsed = BodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const moonshotKey = await getConfig("MOONSHOT_API_KEY");
+  const moonshotKey = await getConfig("MOONSHOT_API_KEY", userId);
   if (!moonshotKey) {
     return NextResponse.json(
       { error: "Moonshot API key not set. Add it in Settings." },
@@ -70,6 +74,7 @@ export async function POST(req: Request) {
 
   const draft = await prisma.postDraft.create({
     data: {
+      userId,
       status: "PENDING_REVIEW",
       content,
       topic,
@@ -79,9 +84,8 @@ export async function POST(req: Request) {
     },
   });
 
-  // Manual generation: pause autopilot for 24h to avoid collision
   try {
-    const config = await getOrCreateAutopilotConfig();
+    const config = await getOrCreateAutopilotConfig(userId);
     if (config.enabled) {
       const pausedUntil = new Date();
       pausedUntil.setHours(pausedUntil.getHours() + 24);

@@ -3,14 +3,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getConfig } from "@/lib/config";
 import { createGetLateClient } from "@/lib/getlate";
+import { requireUserId } from "@/lib/session";
 import { LateApiError, RateLimitError } from "@getlatedev/node";
 
 export const runtime = "nodejs";
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await ctx.params;
 
-  const draft = await prisma.postDraft.findUnique({ where: { id }, include: { schedule: true } });
+  const draft = await prisma.postDraft.findFirst({ where: { id, userId }, include: { schedule: true } });
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (draft.status !== "SCHEDULED") {
     return NextResponse.json({ error: "Only scheduled posts can be cancelled." }, { status: 400 });
@@ -20,7 +24,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "No GetLate post ID." }, { status: 400 });
   }
 
-  const getlateKey = await getConfig("GETLATE_API_KEY");
+  const getlateKey = await getConfig("GETLATE_API_KEY", userId);
   if (!getlateKey) {
     return NextResponse.json({ error: "GetLate API key not set. Save in Settings." }, { status: 400 });
   }
@@ -53,7 +57,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       data: { status: "DISCARDED" },
     });
     const quota = await tx.monthlyQuota.findUnique({
-      where: { year_month: { year, month } },
+      where: { userId_year_month: { userId, year, month } },
     });
     if (quota && quota.usedCount > 0) {
       await tx.monthlyQuota.update({

@@ -6,6 +6,7 @@ import { getConfig } from "@/lib/config";
 import { createGetLateClient } from "@/lib/getlate";
 import { inferMediaType } from "@/lib/media-urls";
 import { toPlainLinkedInText } from "@/lib/text";
+import { requireUserId } from "@/lib/session";
 import { LateApiError, RateLimitError } from "@getlatedev/node";
 
 export const runtime = "nodejs";
@@ -20,11 +21,14 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const userId = await requireUserId().catch(() => null);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await ctx.params;
   const parsed = PatchSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  const draft = await prisma.postDraft.findUnique({ where: { id }, include: { schedule: true } });
+  const draft = await prisma.postDraft.findFirst({ where: { id, userId }, include: { schedule: true } });
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (parsed.data.discard) {
@@ -51,7 +55,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   if (hasEdits) {
     if (draft.status === "SCHEDULED" && draft.schedule?.getlatePostId) {
-      const getlateKey = await getConfig("GETLATE_API_KEY");
+      const getlateKey = await getConfig("GETLATE_API_KEY", userId);
       if (getlateKey) {
         const body: Record<string, unknown> = {};
         if (content !== null) body.content = content;

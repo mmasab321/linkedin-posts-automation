@@ -4,13 +4,13 @@ import { prisma } from "@/lib/prisma";
 
 const DEFAULT_MAX_COUNT = 20;
 
-export async function getOrCreateMonthlyQuota(now = new Date()) {
+export async function getOrCreateMonthlyQuota(userId: string, now = new Date()) {
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-11
 
   return prisma.monthlyQuota.upsert({
-    where: { year_month: { year, month } },
-    create: { year, month, usedCount: 0, maxCount: DEFAULT_MAX_COUNT },
+    where: { userId_year_month: { userId, year, month } },
+    create: { userId, year, month, usedCount: 0, maxCount: DEFAULT_MAX_COUNT },
     update: {},
   });
 }
@@ -19,11 +19,12 @@ export async function getOrCreateMonthlyQuota(now = new Date()) {
  * Next slot: 20 posts/month. One rest day after every 2 consecutive posting days
  * (post, post, rest, post, post, rest … → 2 posts per 3 days ≈ 20/month).
  */
-export async function getNextAvailableSlot(now = new Date()): Promise<Date | null> {
-  const quota = await getOrCreateMonthlyQuota(now);
+export async function getNextAvailableSlot(userId: string, now = new Date()): Promise<Date | null> {
+  const quota = await getOrCreateMonthlyQuota(userId, now);
   if (quota.usedCount >= quota.maxCount) return null;
 
   const lastTwo = await prisma.scheduleSlot.findMany({
+    where: { draft: { userId } },
     orderBy: { scheduledFor: "desc" },
     take: 2,
     select: { scheduledFor: true },

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { prisma } from "@/lib/prisma";
 import { getOrCreateAutopilotConfig, runAutopilotOnce } from "@/lib/autopilot/engine";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 /**
- * Cron: run daily (e.g. 8 AM, 1h before post time). Vercel Cron or external scheduler
- * should call GET /api/cron/autopilot with CRON_SECRET header.
+ * Cron: run daily. Runs autopilot for each user who has it enabled.
+ * Call GET /api/cron/autopilot with CRON_SECRET header.
  */
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization") || req.headers.get("x-cron-secret");
@@ -16,12 +17,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const config = await getOrCreateAutopilotConfig();
-  if (!config.enabled) {
-    return NextResponse.json({ ok: true, skipped: true, reason: "Autopilot disabled" });
+  const enabledConfigs = await prisma.autopilotConfig.findMany({
+    where: { enabled: true },
+    select: { userId: true },
+  });
+  if (enabledConfigs.length === 0) {
+    return NextResponse.json({ ok: true, skipped: true, reason: "No users with autopilot enabled" });
   }
 
-  const result = await runAutopilotOnce();
+  const results: { userId: string; result: Awaited<ReturnType<typeof runAutopilotOnce>> }[] = [];
+  for (const { userId } of enabledConfigs) {
+    const result = await runAutopilotOnce(userId);
+    results.push({ userId, result });
+  }
+
+  const result = results[0]?.result;
+  if (!result) return NextResponse.json({ ok: true, results });
 
   if (result.ok && result.action === "SKIPPED") {
     return NextResponse.json({ ok: true, skipped: true, reason: result.reason });
@@ -46,6 +57,5 @@ export async function GET(req: Request) {
       { status: 200 }
     );
   }
-
   return NextResponse.json({ ok: true, result });
 }
