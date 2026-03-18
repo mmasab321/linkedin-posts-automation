@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       });
       await tx.monthlyQuota.upsert({
         where: { userId_year_month: { userId: draft.userId, year, month } },
-        create: { userId: draft.userId, year, month, usedCount: 1, maxCount: 20 },
+        create: { userId: draft.userId, year, month, usedCount: 1, maxCount: 15 },
         update: { usedCount: { increment: 1 } },
       });
     });

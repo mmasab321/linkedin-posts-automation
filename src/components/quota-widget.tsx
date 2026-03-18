@@ -28,7 +28,7 @@ export function QuotaWidget({ className }: { className?: string }) {
   }, []);
 
   const used = quota?.usedCount ?? 0;
-  const max = quota?.maxCount ?? 20;
+  const max = quota?.maxCount ?? 15;
   const remaining = Math.max(0, max - used);
   const warning = used >= 16 && used < max;
 

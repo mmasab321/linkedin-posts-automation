@@ -40,7 +40,7 @@ export async function GET() {
     nextScheduledAt: config.nextScheduledAt?.toISOString() ?? null,
     consecutiveFailures: config.consecutiveFailures,
     quotaUsed: usedCount,
-    quotaMax: 20,
+    quotaMax: 15,
     nextAvailableSlot: nextSlot?.toISOString() ?? null,
     pendingTopicsInPool: pendingTopics,
     minScoreToApprove: (rules.minScoreToApprove as number) ?? 85,

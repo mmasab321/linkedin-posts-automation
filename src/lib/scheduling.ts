@@ -2,7 +2,7 @@ import { addDays, addHours, differenceInHours, isAfter, set, startOfDay } from "
 
 import { prisma } from "@/lib/prisma";
 
-const DEFAULT_MAX_COUNT = 20;
+const DEFAULT_MAX_COUNT = 15;
 
 export async function getOrCreateMonthlyQuota(userId: string, now = new Date()) {
   const year = now.getFullYear();
@@ -17,7 +17,7 @@ export async function getOrCreateMonthlyQuota(userId: string, now = new Date()) 
 
 /**
  * Next slot: 20 posts/month. One rest day after every 2 consecutive posting days
- * (post, post, rest, post, post, rest … → 2 posts per 3 days ≈ 20/month).
+ * (post, post, rest, post, post, rest … → 2 posts per 3 days ≈ 15/month).
  */
 export async function getNextAvailableSlot(userId: string, now = new Date()): Promise<Date | null> {
   const quota = await getOrCreateMonthlyQuota(userId, now);

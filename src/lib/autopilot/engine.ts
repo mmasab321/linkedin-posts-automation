@@ -116,7 +116,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
     where: { userId, year: now.getFullYear(), month: now.getMonth() },
   });
   const usedCount = quota?.usedCount ?? 0;
-  const maxCount = quota?.maxCount ?? 20;
+  const maxCount = quota?.maxCount ?? 15;
   if (usedCount >= maxCount) {
     await prisma.autopilotConfig.update({
       where: { id: config.id },

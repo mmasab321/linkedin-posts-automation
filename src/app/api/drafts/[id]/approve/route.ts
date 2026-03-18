@@ -27,7 +27,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
   const slot = await getNextAvailableSlot(userId, new Date());
   if (!slot) {
-    return NextResponse.json({ error: "Monthly quota full (20/20)." }, { status: 400 });
+    return NextResponse.json({ error: "Monthly quota full (15/15)." }, { status: 400 });
   }
 
   const getlateKey = await getConfig("GETLATE_API_KEY", userId);
@@ -82,7 +82,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
       const quota = await tx.monthlyQuota.upsert({
         where: { userId_year_month: { userId, year, month } },
-        create: { userId, year, month, usedCount: 0, maxCount: 20 },
+        create: { userId, year, month, usedCount: 0, maxCount: 15 },
         update: {},
       });
 
