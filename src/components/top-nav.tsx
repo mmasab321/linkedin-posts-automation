@@ -32,14 +32,15 @@ export function TopNav({ className }: { className?: string }) {
           ) : session ? (
             <>
               {links.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="relative rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5"
-                >
+                <Link key={l.href} href={l.href} className="relative rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5">
                   {l.label}
                 </Link>
               ))}
+              {session.user?.isAdmin && (
+                <Link href="/admin" className="relative rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5">
+                  Admin
+                </Link>
+              )}
               <span className="text-slate-500 mx-1">|</span>
               <span className="text-slate-400 px-2 truncate max-w-[120px]" title={session.user?.email ?? undefined}>
                 {session.user?.email ?? session.user?.name ?? "Account"}

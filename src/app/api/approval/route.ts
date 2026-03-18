@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getConfig } from "@/lib/config";
+import { getPlan } from "@/lib/plans";
 import { createGetLateClient } from "@/lib/getlate";
 import { inferMediaType, parseMediaUrls } from "@/lib/media-urls";
 
@@ -89,6 +90,8 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
+    const user = await prisma.user.findUnique({ where: { id: draft.userId }, select: { plan: true } });
+    const planLimit = getPlan(user?.plan ?? "free").monthlyPostLimit;
 
     await prisma.$transaction(async (tx) => {
       await tx.scheduleSlot.create({
@@ -105,7 +108,7 @@ export async function GET(req: NextRequest) {
       });
       await tx.monthlyQuota.upsert({
         where: { userId_year_month: { userId: draft.userId, year, month } },
-        create: { userId: draft.userId, year, month, usedCount: 1, maxCount: 15 },
+        create: { userId: draft.userId, year, month, usedCount: 1, maxCount: planLimit },
         update: { usedCount: { increment: 1 } },
       });
     });

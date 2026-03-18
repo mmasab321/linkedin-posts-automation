@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
+import { getSystemPrompt } from "@/lib/prompt";
 import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -17,8 +16,7 @@ export async function POST() {
       return NextResponse.json({ error: "Moonshot API key not set." }, { status: 400 });
     }
 
-    const promptPath = path.join(process.cwd(), "linkedin-post-generator.md");
-    const systemPrompt = await readFile(promptPath, "utf8");
+    const systemPrompt = await getSystemPrompt(userId);
 
     const client = createMoonshotClient(moonshotKey);
     const completion = await client.chat.completions.create({

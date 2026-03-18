@@ -1,9 +1,10 @@
 import { Resend } from "resend";
 
+import { prisma } from "@/lib/prisma";
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM = process.env.RESEND_FROM ?? "LinkedIn Auto-Poster <onboarding@resend.dev>";
-const APPROVAL_EMAIL = process.env.APPROVAL_EMAIL ?? "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export type SendApprovalEmailParams = {
@@ -72,6 +73,18 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export function getApprovalEmailTo(): string {
-  return APPROVAL_EMAIL;
+/** Per-user approval email if set, else APPROVAL_EMAIL env. */
+export async function getApprovalEmailTo(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { approvalEmail: true },
+  });
+  const fromUser = user?.approvalEmail?.trim();
+  if (fromUser) return fromUser;
+  return process.env.APPROVAL_EMAIL ?? "";
+}
+
+/** Sync version for callers that already have the value (e.g. from cache). */
+export function getApprovalEmailToEnv(): string {
+  return process.env.APPROVAL_EMAIL ?? "";
 }

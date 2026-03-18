@@ -1,27 +1,31 @@
 import { addDays, addHours, differenceInHours, isAfter, set, startOfDay } from "date-fns";
 
 import { prisma } from "@/lib/prisma";
-
-const DEFAULT_MAX_COUNT = 15;
+import { getPlan } from "@/lib/plans";
 
 export async function getOrCreateMonthlyQuota(userId: string, now = new Date()) {
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-11
 
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+  const plan = getPlan(user?.plan ?? "free");
+  const maxCount = plan.monthlyPostLimit;
+
   return prisma.monthlyQuota.upsert({
     where: { userId_year_month: { userId, year, month } },
-    create: { userId, year, month, usedCount: 0, maxCount: DEFAULT_MAX_COUNT },
+    create: { userId, year, month, usedCount: 0, maxCount },
     update: {},
   });
 }
 
 /**
- * Next slot: 20 posts/month. One rest day after every 2 consecutive posting days
- * (post, post, rest, post, post, rest … → 2 posts per 3 days ≈ 15/month).
+ * Next slot: plan-based posts/month. One rest day after every 2 consecutive posting days.
  */
 export async function getNextAvailableSlot(userId: string, now = new Date()): Promise<Date | null> {
   const quota = await getOrCreateMonthlyQuota(userId, now);
-  if (quota.usedCount >= quota.maxCount) return null;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+  const limit = getPlan(user?.plan ?? "free").monthlyPostLimit;
+  if (quota.usedCount >= limit) return null;
 
   const lastTwo = await prisma.scheduleSlot.findMany({
     where: { draft: { userId } },

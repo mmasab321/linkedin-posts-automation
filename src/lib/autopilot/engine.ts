@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { prisma } from "@/lib/prisma";
 import { getApprovalEmailTo, sendApprovalEmail } from "@/lib/email";
 import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
+import { getPlan } from "@/lib/plans";
+import { getSystemPrompt } from "@/lib/prompt";
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { toPlainLinkedInText } from "@/lib/text";
 import { textSimilarity, validateContent } from "@/lib/autopilot/validation";
@@ -15,11 +15,6 @@ export type AutopilotRunResult =
   | { ok: true; action: "SCHEDULED" | "PENDING_REVIEW" | "PENDING_APPROVAL"; draftId: string; topic: string; score: number }
   | { ok: true; action: "SKIPPED"; reason: string }
   | { ok: false; action: "FAILED"; reason: string; disableAutopilot?: boolean };
-
-async function getSystemPrompt(): Promise<string> {
-  const p = path.join(process.cwd(), "linkedin-post-generator.md");
-  return readFile(p, "utf8");
-}
 
 export async function getOrCreateAutopilotConfig(userId: string) {
   let config = await prisma.autopilotConfig.findUnique({ where: { userId } });
@@ -188,11 +183,14 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
     return { ok: true, action: "SKIPPED", reason: "Autopilot paused" };
   }
 
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+  const plan = getPlan(user?.plan ?? "free");
+
   const quota = await prisma.monthlyQuota.findFirst({
     where: { userId, year: now.getFullYear(), month: now.getMonth() },
   });
   const usedCount = quota?.usedCount ?? 0;
-  const maxCount = quota?.maxCount ?? 15;
+  const maxCount = quota?.maxCount ?? plan.monthlyPostLimit;
   if (usedCount >= maxCount) {
     await prisma.autopilotConfig.update({
       where: { id: config.id },
@@ -203,7 +201,8 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
 
   const rules = (config.validationRules as Record<string, unknown>) || {};
   const minScore = (rules.minScoreToApprove as number) ?? 85;
-  const maxAuto = config.maxAutoPerMonth ?? 10;
+  const planMaxAuto = plan.maxAutoPerMonth;
+  const maxAuto = Math.min(config.maxAutoPerMonth ?? planMaxAuto, planMaxAuto);
   const autopilotUsedThisMonth = await prisma.postDraft.count({
     where: {
       userId,
@@ -252,18 +251,23 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
 
   const client = createMoonshotClient(moonshotKey);
 
-  // Step 1: Brief generation (angle, hook, key_point)
+  // Step 1: Brief generation (only if plan allows)
   let brief: Brief | null = null;
-  try {
-    brief = await generateBrief(client, topic);
-  } catch {
-    // fall back to current behaviour
+  if (plan.briefGeneration) {
+    try {
+      brief = await generateBrief(client, topic);
+    } catch {
+      // fall back to current behaviour
+    }
   }
   const keyPoint = brief?.key_point ?? topic;
   const hookSuggestion = brief?.hook ?? "";
 
-  // Personal experience bank: best matching entry by tag overlap
-  const personalContext = await findBestExperience(userId, topic);
+  // Personal experience bank (only if plan allows)
+  let personalContext: { title: string; description: string } | null = null;
+  if (plan.experienceBank) {
+    personalContext = await findBestExperience(userId, topic);
+  }
 
   const penalisedTypes = await getPenalisedPostTypes(userId);
   const recentTypes = await getRecentPostTypes(userId, 5);
@@ -272,7 +276,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
 
   let systemPrompt: string;
   try {
-    systemPrompt = await getSystemPrompt();
+    systemPrompt = await getSystemPrompt(userId);
   } catch {
     await prisma.autopilotLog.create({ data: { userId, action: "FAILED", topic, error: "Missing prompt file" } });
     return { ok: false, action: "FAILED", reason: "Missing linkedin-post-generator.md" };
@@ -357,7 +361,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
   // Email approval flow: do not schedule with GetLate until user approves via email (safety gate)
   if (validation.score >= minScore) {
     const token = randomBytes(32).toString("hex");
-    const approvalTo = getApprovalEmailTo();
+    const approvalTo = await getApprovalEmailTo(userId);
 
     await prisma.postDraft.update({
       where: { id: draft.id },

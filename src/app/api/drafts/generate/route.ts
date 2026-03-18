@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { prisma } from "@/lib/prisma";
 import { getConfig } from "@/lib/config";
 import { createMoonshotClient } from "@/lib/moonshot";
+import { getSystemPrompt } from "@/lib/prompt";
 import { toPlainLinkedInText } from "@/lib/text";
 import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
 import { requireUserId } from "@/lib/session";
@@ -18,10 +17,6 @@ const BodySchema = z.object({
   keyPoint: z.string().min(1),
   toneModifier: z.string().optional().nullable(),
 });
-
-function getPromptPath() {
-  return path.join(process.cwd(), "linkedin-post-generator.md");
-}
 
 export async function POST(req: Request) {
   const userId = await requireUserId().catch(() => null);
@@ -42,7 +37,7 @@ export async function POST(req: Request) {
 
   let systemPrompt: string;
   try {
-    systemPrompt = await readFile(getPromptPath(), "utf8");
+    systemPrompt = await getSystemPrompt(userId);
   } catch {
     return NextResponse.json(
       { error: "Missing linkedin-post-generator.md in project root." },

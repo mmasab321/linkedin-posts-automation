@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
+import { getPlan } from "@/lib/plans";
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { requireUserId } from "@/lib/session";
 
@@ -10,6 +11,9 @@ export const runtime = "nodejs";
 export async function GET() {
   const userId = await requireUserId().catch(() => null);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { plan: true } });
+  const plan = getPlan(user?.plan ?? "free");
 
   const config = await getOrCreateAutopilotConfig(userId);
   const now = new Date();
@@ -20,7 +24,7 @@ export async function GET() {
   const nextSlot = await getNextAvailableSlot(userId, now);
   const pendingTopics = await prisma.topicPool.count({ where: { status: "PENDING", source: { userId } } });
   const rules = (config.validationRules as Record<string, unknown>) || {};
-  const maxAuto = config.maxAutoPerMonth ?? 10;
+  const maxAuto = Math.min(config.maxAutoPerMonth ?? plan.maxAutoPerMonth, plan.maxAutoPerMonth);
   const autopilotUsedThisMonth = await prisma.postDraft.count({
     where: {
       userId,
@@ -40,7 +44,7 @@ export async function GET() {
     nextScheduledAt: config.nextScheduledAt?.toISOString() ?? null,
     consecutiveFailures: config.consecutiveFailures,
     quotaUsed: usedCount,
-    quotaMax: 15,
+    quotaMax: plan.monthlyPostLimit,
     nextAvailableSlot: nextSlot?.toISOString() ?? null,
     pendingTopicsInPool: pendingTopics,
     minScoreToApprove: (rules.minScoreToApprove as number) ?? 85,

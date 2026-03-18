@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const newUser = await prisma.user.create({
-    data: { email, name: name ?? null, passwordHash },
+    data: { email, name: name ?? null, passwordHash, onboardingComplete: true },
   });
 
   await prisma.$transaction([
@@ -56,6 +56,9 @@ export async function POST(req: Request) {
     prisma.postDraft.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
     prisma.autopilotConfig.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
     prisma.contentSource.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
+    prisma.experienceEntry.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
+    prisma.userPrompt.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
+    prisma.voiceProfile.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
     prisma.autopilotLog.updateMany({ where: { userId: MIGRATION_USER_ID }, data: { userId: newUser.id } }),
   ]);
 

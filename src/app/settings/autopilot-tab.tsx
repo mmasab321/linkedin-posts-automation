@@ -42,6 +42,7 @@ export function AutopilotTab() {
   const [enabled, setEnabled] = React.useState(false);
   const [scheduleTime, setScheduleTime] = React.useState("09:00");
   const [maxAutoPerMonth, setMaxAutoPerMonth] = React.useState(10);
+  const [maxAutoPerMonthLimit, setMaxAutoPerMonthLimit] = React.useState(15);
   const [minScore, setMinScore] = React.useState(85);
   const [saving, setSaving] = React.useState(false);
   const [toggling, setToggling] = React.useState(false);
@@ -74,6 +75,7 @@ export function AutopilotTab() {
       if (statusJson?.enabled != null) setEnabled(statusJson.enabled);
       if (configJson?.scheduleTime != null) setScheduleTime(configJson.scheduleTime);
       if (configJson?.maxAutoPerMonth != null) setMaxAutoPerMonth(configJson.maxAutoPerMonth);
+      if (configJson?.maxAutoPerMonthLimit != null) setMaxAutoPerMonthLimit(configJson.maxAutoPerMonthLimit);
       const rules = (configJson?.validationRules ?? {}) as Record<string, unknown>;
       setMinScore(Number(rules.minScoreToApprove) || 85);
       if (sourcesJson?.sources) setSources(sourcesJson.sources);
@@ -271,11 +273,11 @@ export function AutopilotTab() {
         />
       </div>
       <div className="space-y-2">
-        <Label>Max auto-posts per month (1–15)</Label>
+        <Label>Max auto-posts per month (1–{maxAutoPerMonthLimit})</Label>
         <input
           type="range"
           min={1}
-          max={15}
+          max={maxAutoPerMonthLimit}
           value={maxAutoPerMonth}
           onChange={(e) => setMaxAutoPerMonth(Number(e.target.value))}
           className="w-full max-w-xs"

@@ -14,13 +14,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  passwordHash  String?   // for credentials; null if OAuth-only
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String?
+  passwordHash        String?   // for credentials; null if OAuth-only
+  emailVerified       DateTime?
+  onboardingComplete  Boolean   @default(false)
+  plan                String    @default("free") // free | pro | agency
+  approvalEmail       String?   // per-user approval email; fallback to APPROVAL_EMAIL env
+  isAdmin             Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   configs           Config[]
   monthlyQuotas     MonthlyQuota[]
@@ -29,6 +33,29 @@ model User {
   contentSources    ContentSource[]
   experienceEntries ExperienceEntry[]
   autopilotLogs     AutopilotLog[]
+  userPrompt        UserPrompt?
+  voiceProfile      VoiceProfile?
+}
+
+model UserPrompt {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  systemPrompt String
+  updatedAt    DateTime @updatedAt
+}
+
+model VoiceProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  headline      String
+  niche         String
+  audience      String
+  tone          String
+  avoidPhrases  String   // comma-separated
+  updatedAt     DateTime @updatedAt
 }
 
 model Config {

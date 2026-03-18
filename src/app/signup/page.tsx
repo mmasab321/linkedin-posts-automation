@@ -31,7 +31,7 @@ export default function SignUpPage() {
         setError(data.error ?? "Sign up failed.");
         return;
       }
-      router.push("/signin?callbackUrl=/dashboard");
+      router.push("/signin?callbackUrl=/onboarding");
     } catch {
       setError("Something went wrong.");
     } finally {

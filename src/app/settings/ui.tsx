@@ -5,13 +5,18 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { AutopilotTab } from "./autopilot-tab";
+import { PromptTab } from "./prompt-tab";
+import { VoiceProfileSection } from "./voice-profile-section";
+import { PlanSection } from "./plan-section";
 
 type SettingsState = {
   hasGetLateKey: boolean;
   hasMoonshotKey: boolean;
   linkedinAccountId: string;
+  approvalEmail: string;
 };
 
 export function SettingsClient() {
@@ -21,12 +26,13 @@ export function SettingsClient() {
   const [getlateApiKey, setGetlateApiKey] = React.useState("");
   const [moonshotApiKey, setMoonshotApiKey] = React.useState("");
   const [linkedinAccountId, setLinkedinAccountId] = React.useState("");
+  const [approvalEmail, setApprovalEmail] = React.useState("");
 
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState<"moonshot" | "getlate" | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [tab, setTab] = React.useState<"api" | "autopilot">("api");
+  const [tab, setTab] = React.useState<"api" | "autopilot" | "prompt">("api");
 
   async function load() {
     setError(null);
@@ -37,6 +43,7 @@ export function SettingsClient() {
       if (!res.ok) throw new Error(json?.error ?? text ?? "Failed to load settings.");
       setState(json);
       setLinkedinAccountId(json.linkedinAccountId ?? "");
+      setApprovalEmail(json.approvalEmail ?? "");
     } catch (e: any) {
       setError(e?.message ?? "Failed to load settings.");
     } finally {
@@ -56,7 +63,7 @@ export function SettingsClient() {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ getlateApiKey, moonshotApiKey, linkedinAccountId }),
+        body: JSON.stringify({ getlateApiKey, moonshotApiKey, linkedinAccountId, approvalEmail: approvalEmail.trim() || null }),
       });
       const text = await res.text();
       const json = text ? JSON.parse(text) : null;
@@ -118,12 +125,30 @@ export function SettingsClient() {
         >
           Autopilot
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("prompt")}
+          className={cn(
+            "relative px-4 py-2 text-sm font-semibold transition-colors rounded-full",
+            tab === "prompt"
+              ? "bg-slate-800 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10"
+              : "text-slate-400 hover:text-white hover:bg-white/5",
+          )}
+        >
+          Prompt
+        </button>
       </div>
 
       {tab === "autopilot" ? (
         <AutopilotTab />
+      ) : tab === "prompt" ? (
+        <>
+          <VoiceProfileSection />
+          <PromptTab />
+        </>
       ) : (
         <>
+          <PlanSection />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>GetLate API key</Label>
@@ -162,6 +187,12 @@ export function SettingsClient() {
             <Label>LinkedIn Account ID (GetLate)</Label>
             <Input value={linkedinAccountId} onChange={(e) => setLinkedinAccountId(e.target.value)} placeholder="acc_... or your id" />
             <div className="text-xs text-neutral-500 dark:text-neutral-400">From GetLate dashboard after connecting LinkedIn.</div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Approval email (autopilot review emails)</Label>
+            <Input type="email" value={approvalEmail} onChange={(e) => setApprovalEmail(e.target.value)} placeholder="email@example.com" />
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">Where to send Approve/Reject links. Overrides APPROVAL_EMAIL env if set.</div>
           </div>
 
           {message ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">{message}</div> : null}
