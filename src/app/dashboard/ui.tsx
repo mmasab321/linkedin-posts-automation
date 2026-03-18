@@ -233,6 +233,33 @@ export function DashboardClient() {
     }
   }
 
+  async function deleteDraft(id: string, isScheduled: boolean) {
+    setBusyId(id);
+    setError(null);
+    try {
+      if (isScheduled) {
+        const res = await fetch(`/api/drafts/${id}/unschedule`, { method: "POST" });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json?.error ?? "Failed to cancel schedule.");
+        }
+      }
+      const res = await fetch(`/api/drafts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discard: true }),
+      });
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+      if (!res.ok) throw new Error(json?.error ?? text ?? "Failed to delete.");
+      await load();
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to delete.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const pending = drafts.filter((d) => PENDING_STATUSES.includes(d.status));
   const scheduled = drafts.filter((d) => d.status === SCHEDULED_STATUS);
   const done = drafts.filter((d) => DONE_STATUSES.includes(d.status));
@@ -477,23 +504,28 @@ export function DashboardClient() {
                   ) : (
                     <>
                       {(isPending || isScheduled) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingId(d.id);
-                            setEditValue(d.content);
-                            setEditScheduledFor(
-                              isScheduled && d.schedule?.scheduledFor ? toDateTimeLocal(d.schedule.scheduledFor) : "",
-                            );
-                            setEditFirstComment(d.firstComment ?? "");
-                            setEditDisableLinkPreview(d.disableLinkPreview ?? false);
-                            setEditMediaUrls(parseMediaUrlsFromDraft(d.mediaUrls));
-                          }}
-                          disabled={isBusy}
-                        >
-                          Edit
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingId(d.id);
+                              setEditValue(d.content);
+                              setEditScheduledFor(
+                                isScheduled && d.schedule?.scheduledFor ? toDateTimeLocal(d.schedule.scheduledFor) : "",
+                              );
+                              setEditFirstComment(d.firstComment ?? "");
+                              setEditDisableLinkPreview(d.disableLinkPreview ?? false);
+                              setEditMediaUrls(parseMediaUrlsFromDraft(d.mediaUrls));
+                            }}
+                            disabled={isBusy}
+                          >
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => deleteDraft(d.id, isScheduled)} disabled={isBusy} className="text-red-400 border-red-400/50 hover:bg-red-500/10 hover:text-red-300">
+                            Delete
+                          </Button>
+                        </>
                       )}
                       {isPending && (
                         <>
