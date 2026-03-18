@@ -8,6 +8,22 @@ Next.js app: generate LinkedIn drafts with Kimi 2.5 (Moonshot), approve & schedu
 - **Sign in** at `/signin`. Protected routes (Dashboard, Generate, Settings) require a logged-in session.
 - **Required env:** Set **`AUTH_SECRET`** (e.g. `openssl rand -base64 32`) for JWT signing. Without it, NextAuth may refuse to start in production.
 
+### Claiming existing data after first deploy (migration)
+
+If you had data before auth (drafts, API keys, scheduled posts), the migration assigns it to a placeholder user. To create **your** account and move that data to you:
+
+1. Set **`CLAIM_SECRET`** in Vercel (e.g. same as `AUTH_SECRET` or a random string). Optional: you can use **`CRON_SECRET`** instead if already set.
+2. After deploy, call the claim endpoint once (e.g. from your machine):
+
+   ```bash
+   curl -X POST https://your-app.vercel.app/api/auth/claim \
+     -H "Authorization: Bearer YOUR_CLAIM_SECRET" \
+     -H "Content-Type: application/json" \
+     -d '{"email":"you@example.com","password":"your-secure-password","name":"Your Name"}'
+   ```
+
+3. Sign in at `/signin` with that email and password. Your existing posts, settings, and quota will be there.
+
 ## Deploy on Vercel
 
 The app uses **PostgreSQL** (SQLite cannot run on Vercel’s serverless environment).
