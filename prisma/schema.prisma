@@ -27,6 +27,7 @@ model User {
   postDrafts        PostDraft[]
   autopilotConfigs  AutopilotConfig[]
   contentSources    ContentSource[]
+  experienceEntries ExperienceEntry[]
   autopilotLogs     AutopilotLog[]
 }
 
@@ -70,6 +71,8 @@ model PostDraft {
   approvalStatus     String? // pending | approved | rejected | expired
   approvalSentAt     DateTime?
   scheduledFor       DateTime? // intended publish time when pending email approval
+  engagementScore    Float? // reserved for future LinkedIn API
+  manualFeedback     String? // approved | rejected | discarded
   createdAt          DateTime    @default(now())
   schedule           ScheduleSlot?
 }
@@ -134,6 +137,16 @@ model TopicPool {
   createdAt     DateTime     @default(now())
 
   @@index([status, createdAt])
+}
+
+model ExperienceEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String   // short label e.g. "Built SubSlice in a weekend"
+  description String   // 1-3 sentences of context
+  tags        String   // comma-separated keywords e.g. "react-native,mvp,speed"
+  createdAt   DateTime @default(now())
 }
 
 model AutopilotLog {

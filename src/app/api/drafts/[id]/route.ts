@@ -34,7 +34,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (parsed.data.discard) {
     const updated = await prisma.postDraft.update({
       where: { id },
-      data: { status: "DISCARDED" },
+      data: { status: "DISCARDED", manualFeedback: "discarded" },
       include: { schedule: true },
     });
     return NextResponse.json({ draft: updated });

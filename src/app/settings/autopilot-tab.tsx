@@ -27,6 +27,14 @@ type ContentSource = {
   priority: number;
 };
 
+type ExperienceEntry = {
+  id: string;
+  title: string;
+  description: string;
+  tags: string;
+  createdAt: string;
+};
+
 export function AutopilotTab() {
   const [status, setStatus] = React.useState<AutopilotStatus | null>(null);
   const [sources, setSources] = React.useState<ContentSource[]>([]);
@@ -42,19 +50,26 @@ export function AutopilotTab() {
   const [newRssUrl, setNewRssUrl] = React.useState("");
   const [newEvergreen, setNewEvergreen] = React.useState("");
   const [fetchRssLoading, setFetchRssLoading] = React.useState(false);
+  const [experiences, setExperiences] = React.useState<ExperienceEntry[]>([]);
+  const [expTitle, setExpTitle] = React.useState("");
+  const [expDescription, setExpDescription] = React.useState("");
+  const [expTags, setExpTags] = React.useState("");
+  const [expSaving, setExpSaving] = React.useState(false);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [statusRes, configRes, sourcesRes] = await Promise.all([
+      const [statusRes, configRes, sourcesRes, experiencesRes] = await Promise.all([
         fetch("/api/autopilot/status"),
         fetch("/api/autopilot/config"),
         fetch("/api/admin/content-sources"),
+        fetch("/api/admin/experiences"),
       ]);
       const statusJson = statusRes.ok ? await statusRes.json() : null;
       const configJson = configRes.ok ? await configRes.json() : null;
       const sourcesJson = sourcesRes.ok ? await sourcesRes.json() : null;
+      const experiencesJson = experiencesRes.ok ? await experiencesRes.json() : null;
       if (statusJson) setStatus(statusJson);
       if (statusJson?.enabled != null) setEnabled(statusJson.enabled);
       if (configJson?.scheduleTime != null) setScheduleTime(configJson.scheduleTime);
@@ -62,6 +77,7 @@ export function AutopilotTab() {
       const rules = (configJson?.validationRules ?? {}) as Record<string, unknown>;
       setMinScore(Number(rules.minScoreToApprove) || 85);
       if (sourcesJson?.sources) setSources(sourcesJson.sources);
+      if (experiencesJson?.entries) setExperiences(experiencesJson.entries);
     } catch (e) {
       setError("Failed to load autopilot.");
     } finally {
@@ -170,6 +186,31 @@ export function AutopilotTab() {
       setError(e?.message ?? "Failed to fetch RSS.");
     } finally {
       setFetchRssLoading(false);
+    }
+  }
+
+  async function addExperience() {
+    if (!expTitle.trim() || !expDescription.trim() || !expTags.trim()) return;
+    setExpSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/experiences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: expTitle.trim(), description: expDescription.trim(), tags: expTags.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? "Failed to add");
+      }
+      setExpTitle("");
+      setExpDescription("");
+      setExpTags("");
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to add experience.");
+    } finally {
+      setExpSaving(false);
     }
   }
 
@@ -286,6 +327,30 @@ export function AutopilotTab() {
             </ul>
           )}
         </div>
+      </div>
+
+      <div className="border-t pt-4">
+        <Label className="mb-2 block">Your experience bank</Label>
+        <p className="text-xs text-neutral-500 mb-2">Short experiences (title + description + tags) that autopilot can use when a topic matches your tags.</p>
+        <div className="space-y-2 mb-3">
+          <Input value={expTitle} onChange={(e) => setExpTitle(e.target.value)} placeholder="Title (e.g. Built SubSlice in a weekend)" className="max-w-md" />
+          <Textarea value={expDescription} onChange={(e) => setExpDescription(e.target.value)} placeholder="Description (1–3 sentences)" rows={2} className="max-w-md" />
+          <Input value={expTags} onChange={(e) => setExpTags(e.target.value)} placeholder="Tags, comma-separated (e.g. react-native,mvp,speed)" className="max-w-md" />
+          <Button type="button" variant="outline" size="sm" onClick={addExperience} disabled={expSaving || !expTitle.trim() || !expDescription.trim() || !expTags.trim()}>
+            {expSaving ? "Adding…" : "Add"}
+          </Button>
+        </div>
+        {experiences.length > 0 && (
+          <ul className="text-sm space-y-1">
+            {experiences.map((e) => (
+              <li key={e.id} className="rounded border border-white/10 bg-white/5 px-2 py-1.5">
+                <span className="font-medium">{e.title}</span>
+                <span className="text-neutral-500 ml-2">— {e.description.slice(0, 60)}{e.description.length > 60 ? "…" : ""}</span>
+                <span className="text-xs text-neutral-400 ml-2">[{e.tags}]</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {message && <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-300">{message}</div>}

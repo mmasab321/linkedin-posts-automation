@@ -83,6 +83,12 @@ export function DashboardClient() {
     } | null;
     message?: string;
   } | null>(null);
+  const [insights, setInsights] = React.useState<{
+    totalWithFeedback: number;
+    perType: { postType: string; total: number; approved: number; rejected: number; approvalRate: number }[];
+    topPerforming: { postType: string; approvalRate: number }[];
+    underperforming: { postType: string; approvalRate: number }[];
+  } | null>(null);
   const [pausing, setPausing] = React.useState(false);
 
   async function load() {
@@ -104,11 +110,12 @@ export function DashboardClient() {
 
   async function loadAutopilot() {
     try {
-      const [statusRes, topicsRes, pileRes, nextPostRes] = await Promise.all([
+      const [statusRes, topicsRes, pileRes, nextPostRes, insightsRes] = await Promise.all([
         fetch("/api/autopilot/status"),
         fetch("/api/admin/topics?status=PENDING&limit=3"),
         fetch("/api/admin/topics?status=PENDING&limit=50"),
         fetch("/api/autopilot/next-post"),
+        fetch("/api/autopilot/insights"),
       ]);
       if (statusRes.ok) {
         const j = await statusRes.json();
@@ -129,6 +136,21 @@ export function DashboardClient() {
           nextPost: j.nextPost ?? null,
           message: j.message,
         });
+      }
+      if (insightsRes.ok) {
+        const j = await insightsRes.json();
+        if (j.totalWithFeedback >= 5) {
+          setInsights({
+            totalWithFeedback: j.totalWithFeedback,
+            perType: j.perType ?? [],
+            topPerforming: j.topPerforming ?? [],
+            underperforming: j.underperforming ?? [],
+          });
+        } else {
+          setInsights(null);
+        }
+      } else {
+        setInsights(null);
       }
     } catch {
       // ignore
@@ -418,6 +440,36 @@ export function DashboardClient() {
           ) : (
             <p className="text-sm text-slate-400">{nextPostData.message ?? "No post yet for this slot."}</p>
           )}
+        </div>
+      )}
+
+      {insights && insights.totalWithFeedback >= 5 && (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/20 p-4">
+          <h3 className="text-sm font-semibold text-emerald-200 mb-2">What&apos;s working</h3>
+          <p className="text-xs text-emerald-200/70 mb-2">Based on {insights.totalWithFeedback} posts with approve/reject feedback.</p>
+          <div className="grid gap-2 text-sm">
+            <div>
+              <span className="text-slate-400">Top performing:</span>
+              <ul className="mt-0.5 text-slate-200">
+                {insights.topPerforming.map((p) => (
+                  <li key={p.postType}>{p.postType}: {Math.round(p.approvalRate * 100)}% approved</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <span className="text-slate-400">Underperforming:</span>
+              <ul className="mt-0.5 text-slate-200">
+                {insights.underperforming.map((p) => (
+                  <li key={p.postType}>{p.postType}: {Math.round(p.approvalRate * 100)}% approved</li>
+                ))}
+              </ul>
+            </div>
+            <div className="text-xs text-slate-500">
+              {insights.perType.map((t) => (
+                <span key={t.postType} className="mr-3">{t.postType}: {t.approved}/{t.total}</span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

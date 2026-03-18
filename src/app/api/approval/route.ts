@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   if (action === "reject") {
     await prisma.postDraft.update({
       where: { id: draft.id },
-      data: { approvalStatus: "rejected", approvalToken: null },
+      data: { approvalStatus: "rejected", approvalToken: null, manualFeedback: "rejected" },
     });
     return htmlPage("Post rejected", "This post has been cancelled and will not go live.");
   }
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       });
       await tx.postDraft.update({
         where: { id: draft.id },
-        data: { status: "SCHEDULED", approvalStatus: "approved", approvalToken: null },
+        data: { status: "SCHEDULED", approvalStatus: "approved", approvalToken: null, manualFeedback: "approved" },
       });
       await tx.monthlyQuota.upsert({
         where: { userId_year_month: { userId: draft.userId, year, month } },

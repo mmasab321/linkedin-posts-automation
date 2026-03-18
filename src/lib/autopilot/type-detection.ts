@@ -24,19 +24,25 @@ export function detectPostTypeFromTopic(topic: string): PostType {
 
 /**
  * Override for diversity: if last N posts were mostly one type, force a different type.
+ * Also avoids penalised types (e.g. high rejection rate from feedback).
  */
 export function applyDiversityOverride(
   detected: PostType,
   recentTypes: PostType[],
-  lastN = 2
+  lastN = 2,
+  penalisedTypes: PostType[] = []
 ): PostType {
-  if (recentTypes.length < lastN) return detected;
+  const alternatives: PostType[] = ["story", "project", "insight", "tip", "hot_take", "results"];
+  const allowed = alternatives.filter((x) => !penalisedTypes.includes(x));
+  let candidate = detected;
+  if (penalisedTypes.includes(detected) && allowed.length > 0) {
+    candidate = allowed[0];
+  }
+  if (recentTypes.length < lastN) return candidate;
   const recent = recentTypes.slice(-lastN);
   const allSame = recent.every((x) => x === recent[0]);
-  if (!allSame) return detected;
-  // Force rotation: if last 2 were "tip", prefer "story" or "project"
-  const alternatives: PostType[] = ["story", "project", "insight", "tip", "hot_take", "results"];
-  const other = alternatives.filter((x) => x !== recent[0]);
-  if (other.length) return other[0] ?? detected;
-  return detected;
+  if (!allSame) return candidate;
+  const other = alternatives.filter((x) => x !== recent[0] && !penalisedTypes.includes(x));
+  if (other.length) return other[0] ?? candidate;
+  return candidate;
 }

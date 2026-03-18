@@ -78,6 +78,82 @@ async function getRecentPostTypes(userId: string, limit: number): Promise<PostTy
   return drafts.map((d) => d.postType as PostType);
 }
 
+/** Post types with rejection rate >= 60% (rejected+discarded / total) in last 20 autopilot with feedback. */
+async function getPenalisedPostTypes(userId: string): Promise<PostType[]> {
+  const drafts = await prisma.postDraft.findMany({
+    where: { userId, isAutopilot: true, manualFeedback: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { postType: true, manualFeedback: true },
+  });
+  const byType = new Map<string, { approved: number; rejected: number }>();
+  for (const d of drafts) {
+    const t = d.postType ?? "tip";
+    if (!byType.has(t)) byType.set(t, { approved: 0, rejected: 0 });
+    const cur = byType.get(t)!;
+    if (d.manualFeedback === "approved") cur.approved++;
+    else cur.rejected++;
+  }
+  const penalised: PostType[] = [];
+  for (const [type, counts] of byType) {
+    const total = counts.approved + counts.rejected;
+    if (total > 0 && counts.rejected / total >= 0.6) penalised.push(type as PostType);
+  }
+  return penalised;
+}
+
+type Brief = { angle: string; hook: string; key_point: string };
+
+async function generateBrief(client: ReturnType<typeof createMoonshotClient>, topic: string): Promise<Brief | null> {
+  const systemPrompt =
+    "You are a content strategist. Given a topic, return a JSON object with three fields: angle (a specific contrarian or personal take on the topic, 1 sentence), hook (a scroll-stopping first line, under 12 words, no 'I'), and key_point (the single most valuable takeaway, 1 sentence). Return only valid JSON.";
+  try {
+    const completion = await client.chat.completions.create({
+      model: "kimi-k2.5",
+      temperature: 1,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: topic },
+      ],
+    });
+    const raw = completion.choices?.[0]?.message?.content?.trim() ?? "";
+    const json = JSON.parse(raw) as unknown;
+    if (json && typeof json === "object" && "key_point" in json && typeof (json as Brief).key_point === "string") {
+      const b = json as Brief;
+      return {
+        angle: typeof b.angle === "string" ? b.angle : "",
+        hook: typeof b.hook === "string" ? b.hook : "",
+        key_point: b.key_point,
+      };
+    }
+  } catch {
+    // fall back to current behaviour
+  }
+  return null;
+}
+
+/** Find best matching experience by tag overlap (case-insensitive substring in topic). */
+async function findBestExperience(userId: string, topic: string): Promise<{ title: string; description: string } | null> {
+  const entries = await prisma.experienceEntry.findMany({
+    where: { userId },
+    select: { id: true, title: true, description: true, tags: true },
+  });
+  const topicLower = topic.toLowerCase();
+  let best: { title: string; description: string; score: number } | null = null;
+  for (const e of entries) {
+    const tags = e.tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    let score = 0;
+    for (const tag of tags) {
+      if (tag.length < 2) continue;
+      if (topicLower.includes(tag)) score++;
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { title: e.title, description: e.description, score };
+    }
+  }
+  return best ? { title: best.title, description: best.description } : null;
+}
+
 async function getRecentContents(userId: string, limit: number): Promise<string[]> {
   const drafts = await prisma.postDraft.findMany({
     where: { userId, status: { in: ["SCHEDULED", "PUBLISHED"] } },
@@ -174,9 +250,25 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
     return { ok: false, action: "FAILED", reason: "GetLate or LinkedIn Account ID not set" };
   }
 
+  const client = createMoonshotClient(moonshotKey);
+
+  // Step 1: Brief generation (angle, hook, key_point)
+  let brief: Brief | null = null;
+  try {
+    brief = await generateBrief(client, topic);
+  } catch {
+    // fall back to current behaviour
+  }
+  const keyPoint = brief?.key_point ?? topic;
+  const hookSuggestion = brief?.hook ?? "";
+
+  // Personal experience bank: best matching entry by tag overlap
+  const personalContext = await findBestExperience(userId, topic);
+
+  const penalisedTypes = await getPenalisedPostTypes(userId);
   const recentTypes = await getRecentPostTypes(userId, 5);
   let postType = detectPostTypeFromTopic(topic);
-  postType = applyDiversityOverride(postType, recentTypes, 2);
+  postType = applyDiversityOverride(postType, recentTypes, 2, penalisedTypes);
 
   let systemPrompt: string;
   try {
@@ -186,14 +278,16 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
     return { ok: false, action: "FAILED", reason: "Missing linkedin-post-generator.md" };
   }
 
-  const userInput = [
+  const userInputLines = [
     `POST_TYPE: ${postType}`,
     `TOPIC: ${topic}`,
-    `KEY_POINT: ${topic}`,
+    `KEY_POINT: ${keyPoint}`,
     `TONE_MODIFIER: `,
-  ].join("\n");
+  ];
+  if (hookSuggestion) userInputLines.unshift(`HOOK_SUGGESTION: ${hookSuggestion}`);
+  if (personalContext) userInputLines.push(`PERSONAL_CONTEXT: ${personalContext.title} — ${personalContext.description}`);
+  const userInput = userInputLines.join("\n");
 
-  const client = createMoonshotClient(moonshotKey);
   let raw: string;
   try {
     const completion = await client.chat.completions.create({
@@ -250,7 +344,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
       content,
       topic,
       postType,
-      keyPoint: topic,
+      keyPoint,
       isAutopilot: true,
     },
   });
