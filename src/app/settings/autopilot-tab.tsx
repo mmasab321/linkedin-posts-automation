@@ -41,6 +41,7 @@ export function AutopilotTab() {
   const [error, setError] = React.useState<string | null>(null);
   const [newRssUrl, setNewRssUrl] = React.useState("");
   const [newEvergreen, setNewEvergreen] = React.useState("");
+  const [fetchRssLoading, setFetchRssLoading] = React.useState(false);
 
   async function load() {
     setLoading(true);
@@ -152,6 +153,26 @@ export function AutopilotTab() {
     }
   }
 
+  async function fetchRssNow() {
+    setFetchRssLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/fetch-rss", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Failed to fetch RSS");
+      const msg = data.added != null
+        ? `RSS fetch done: ${data.added} topics added, ${data.skipped} skipped.`
+        : "RSS fetch done.";
+      setMessage(msg);
+      await load();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to fetch RSS.");
+    } finally {
+      setFetchRssLoading(false);
+    }
+  }
+
   if (loading) return <div className="text-sm text-neutral-500">Loading…</div>;
 
   return (
@@ -241,10 +262,14 @@ export function AutopilotTab() {
         <div className="space-y-3">
           <div>
             <div className="text-xs text-neutral-500 mb-1">RSS feed URL</div>
-            <div className="flex gap-2">
-              <Input value={newRssUrl} onChange={(e) => setNewRssUrl(e.target.value)} placeholder="https://..." />
+            <div className="flex flex-wrap items-center gap-2">
+              <Input value={newRssUrl} onChange={(e) => setNewRssUrl(e.target.value)} placeholder="https://..." className="max-w-sm" />
               <Button type="button" variant="outline" size="sm" onClick={addRss}>Add</Button>
+              <Button type="button" variant="outline" size="sm" onClick={fetchRssNow} disabled={fetchRssLoading || sources.filter((s) => s.type === "RSS").length === 0}>
+                {fetchRssLoading ? "Fetching…" : "Fetch RSS now"}
+              </Button>
             </div>
+            <p className="text-xs text-neutral-500 mt-1">RSS titles are fetched daily by cron (7:00 UTC); use &quot;Fetch RSS now&quot; to refresh immediately.</p>
           </div>
           <div>
             <div className="text-xs text-neutral-500 mb-1">Evergreen topics (one per line)</div>
