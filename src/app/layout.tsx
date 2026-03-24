@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/top-nav";
-import { QuotaWidget } from "@/components/quota-widget";
 import { OnboardingRedirect } from "@/components/onboarding-redirect";
 import { Providers } from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -17,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LinkedIn Auto-Poster",
+  title: "Auto-Poster — LinkedIn on Autopilot",
   description: "Generate LinkedIn drafts with Kimi and schedule via GetLate.",
 };
 
@@ -28,19 +29,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-[#0B0F19] text-slate-50 selection:bg-indigo-500/30`}
+        className={`${inter.variable} ${geistMono.variable} antialiased min-h-screen bg-surface text-on-surface selection:bg-primary-container/30 selection:text-primary`}
       >
         <Providers>
-        <OnboardingRedirect />
-        <div className="fixed inset-0 z-[-1] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0B0F19] to-[#0B0F19]"></div>
-        <TopNav />
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-10 lg:grid-cols-[1fr_320px]">
-          <main className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">{children}</main>
-          <aside className="lg:sticky lg:top-8 lg:self-start animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out delay-150 fill-mode-both">
-            <QuotaWidget />
-          </aside>
-        </div>
+          <OnboardingRedirect />
+          <div className="fixed inset-0 z-[-1] midnight-glow pointer-events-none" />
+          <TopNav />
+          <div className="pt-16">
+            {children}
+          </div>
         </Providers>
       </body>
     </html>
