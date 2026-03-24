@@ -9,10 +9,22 @@ import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 
+const POST_TYPE_VALUES = ["story", "insight", "project", "tip", "hot_take", "results"] as const;
+
+const PillarSchema = z
+  .record(z.enum(POST_TYPE_VALUES), z.number().int().min(0).max(100))
+  .optional();
+
 const BodySchema = z.object({
   scheduleTime: z.string().regex(/^\d{2}:\d{2}$/).optional(), // HH:mm
   maxAutoPerMonth: z.number().int().min(1).max(50).optional(),
-  validationRules: z.record(z.string(), z.unknown()).optional(),
+  validationRules: z
+    .object({
+      minScoreToApprove: z.number().int().min(0).max(100).optional(),
+      contentPillars: PillarSchema,
+    })
+    .passthrough()
+    .optional(),
 });
 
 export async function GET() {

@@ -2,6 +2,83 @@
  * Autopilot quality gate: score 0-100, must pass checks to auto-approve.
  */
 
+import type OpenAI from "openai";
+
+export interface LLMQualityScore {
+  score: number;          // 0–100 composite (sum of five 0–20 dimensions)
+  hookQuality: number;    // first 2 lines: scroll-stopping, concrete, no "In today's"
+  originality: number;    // personal angle, not generic advice
+  valueClarity: number;   // single clear takeaway by the end
+  toneMatch: number;      // matches declared tone in voice profile
+  naturalness: number;    // sounds human, not templated
+  feedback: string;       // one-sentence LLM rationale
+}
+
+/**
+ * Run a second Moonshot call that scores the generated post across 5 quality
+ * dimensions. Returns null on any failure so callers can fall back to the
+ * mechanical score from validateContent().
+ */
+export async function llmQualityCheck(
+  client: OpenAI,
+  content: string,
+  voiceProfile: { tone?: string | null; niche?: string | null } | null,
+): Promise<LLMQualityScore | null> {
+  try {
+    const toneHint = voiceProfile?.tone?.trim() ? `Declared tone: ${voiceProfile.tone.trim()}.` : "";
+    const nicheHint = voiceProfile?.niche?.trim() ? `Author niche: ${voiceProfile.niche.trim()}.` : "";
+
+    const systemPrompt = `You are a LinkedIn post quality reviewer. ${toneHint} ${nicheHint}
+Score the post on exactly these five dimensions (each 0–20, integers only):
+- hookQuality: Is the very first line scroll-stopping and concrete? Deduct for "In today's", "I want to talk about", vague openers, or questions without stakes.
+- originality: Does it share a personal perspective or concrete experience? Deduct for generic advice that could apply to anyone.
+- valueClarity: Is there one clear, actionable takeaway by the end? Deduct if the reader wouldn't know what to do or think differently.
+- toneMatch: Does the writing style match the declared tone? If no tone declared, score 15 by default.
+- naturalness: Does it sound like a real person wrote it, not an AI template? Deduct for bullet-point overload, formulaic structure, or hollow enthusiasm.
+
+Reply with ONLY valid JSON, no markdown, no explanation outside the JSON:
+{"hookQuality":N,"originality":N,"valueClarity":N,"toneMatch":N,"naturalness":N,"feedback":"one sentence"}`;
+
+    const res = await client.chat.completions.create({
+      model: "moonshot-v1-8k",
+      temperature: 0,
+      max_tokens: 200,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: content.slice(0, 2000) },
+      ],
+    });
+
+    const raw = res.choices[0]?.message?.content?.trim() ?? "";
+    // Strip possible markdown fences
+    const jsonStr = raw.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim();
+    const parsed = JSON.parse(jsonStr) as Partial<LLMQualityScore>;
+
+    const hookQuality = clamp(Number(parsed.hookQuality ?? 10), 0, 20);
+    const originality = clamp(Number(parsed.originality ?? 10), 0, 20);
+    const valueClarity = clamp(Number(parsed.valueClarity ?? 10), 0, 20);
+    const toneMatch = clamp(Number(parsed.toneMatch ?? 15), 0, 20);
+    const naturalness = clamp(Number(parsed.naturalness ?? 10), 0, 20);
+    const score = hookQuality + originality + valueClarity + toneMatch + naturalness;
+
+    return {
+      score,
+      hookQuality,
+      originality,
+      valueClarity,
+      toneMatch,
+      naturalness,
+      feedback: typeof parsed.feedback === "string" ? parsed.feedback.slice(0, 300) : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, isNaN(n) ? min : n));
+}
+
 const BANNED_PHRASES = [
   "In today's",
   "As an AI",

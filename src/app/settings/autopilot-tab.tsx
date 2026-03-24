@@ -8,6 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+const POST_TYPES = ["story", "insight", "project", "tip", "hot_take", "results"] as const;
+type PostTypeName = (typeof POST_TYPES)[number];
+const DEFAULT_PILLARS: Record<PostTypeName, number> = {
+  story: 0, insight: 0, project: 0, tip: 0, hot_take: 0, results: 0,
+};
+
 type AutopilotStatus = {
   enabled: boolean;
   pausedUntil: string | null;
@@ -56,6 +62,8 @@ export function AutopilotTab() {
   const [expDescription, setExpDescription] = React.useState("");
   const [expTags, setExpTags] = React.useState("");
   const [expSaving, setExpSaving] = React.useState(false);
+  const [pillarsEnabled, setPillarsEnabled] = React.useState(false);
+  const [pillars, setPillars] = React.useState<Record<PostTypeName, number>>(DEFAULT_PILLARS);
 
   async function load() {
     setLoading(true);
@@ -78,6 +86,14 @@ export function AutopilotTab() {
       if (configJson?.maxAutoPerMonthLimit != null) setMaxAutoPerMonthLimit(configJson.maxAutoPerMonthLimit);
       const rules = (configJson?.validationRules ?? {}) as Record<string, unknown>;
       setMinScore(Number(rules.minScoreToApprove) || 85);
+      const storedPillars = rules.contentPillars as Record<string, number> | undefined;
+      if (storedPillars && Object.values(storedPillars).some((v) => Number(v) > 0)) {
+        setPillarsEnabled(true);
+        setPillars({ ...DEFAULT_PILLARS, ...Object.fromEntries(Object.entries(storedPillars).map(([k, v]) => [k, Number(v)])) } as Record<PostTypeName, number>);
+      } else {
+        setPillarsEnabled(false);
+        setPillars(DEFAULT_PILLARS);
+      }
       if (sourcesJson?.sources) setSources(sourcesJson.sources);
       if (experiencesJson?.entries) setExperiences(experiencesJson.entries);
     } catch (e) {
@@ -124,7 +140,10 @@ export function AutopilotTab() {
         body: JSON.stringify({
           scheduleTime,
           maxAutoPerMonth,
-          validationRules: { minScoreToApprove: minScore },
+          validationRules: {
+            minScoreToApprove: minScore,
+            contentPillars: pillarsEnabled ? pillars : {},
+          },
         }),
       });
       setMessage("Config saved.");
@@ -296,6 +315,51 @@ export function AutopilotTab() {
           <option value={95}>Very strict (95+)</option>
         </select>
       </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="pillars-toggle"
+            checked={pillarsEnabled}
+            onChange={(e) => setPillarsEnabled(e.target.checked)}
+            className="rounded border-neutral-300"
+          />
+          <Label htmlFor="pillars-toggle" className="cursor-pointer">Content pillar targets</Label>
+        </div>
+        {pillarsEnabled && (
+          <div className="space-y-3 pl-1 pt-1">
+            <p className="text-xs text-neutral-500">
+              Set a target % per post type. Autopilot biases toward whichever pillar is most behind its
+              target (based on your last 30 posts). Values don&apos;t need to sum to 100.
+            </p>
+            <div className="space-y-2">
+              {POST_TYPES.map((type) => (
+                <div key={type} className="flex items-center gap-3">
+                  <span className="w-20 text-sm capitalize text-neutral-300">{type.replace("_", " ")}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={pillars[type]}
+                    onChange={(e) => setPillars((prev) => ({ ...prev, [type]: Number(e.target.value) }))}
+                    className="w-32 accent-indigo-500"
+                  />
+                  <span className="w-10 text-right text-sm text-neutral-300">{pillars[type]}%</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-neutral-500">
+              Total:{" "}
+              <span className={cn(Object.values(pillars).reduce((a, b) => a + b, 0) === 0 ? "text-amber-400" : "text-slate-300")}>
+                {Object.values(pillars).reduce((a, b) => a + b, 0)}%
+              </span>
+              {" "}— normalised automatically.
+            </p>
+          </div>
+        )}
+      </div>
+
       <Button type="button" onClick={saveConfig} disabled={saving}>
         {saving ? "Saving…" : "Save config"}
       </Button>

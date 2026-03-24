@@ -75,7 +75,7 @@ model MonthlyQuota {
   year      Int
   month     Int // 0-11
   usedCount Int @default(0)
-  maxCount  Int @default(15)
+  maxCount  Int @default(20)
 
   @@unique([userId, year, month])
 }

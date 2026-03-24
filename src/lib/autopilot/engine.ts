@@ -8,7 +8,7 @@ import { getPlan } from "@/lib/plans";
 import { getSystemPrompt } from "@/lib/prompt";
 import { getNextAvailableSlot } from "@/lib/scheduling";
 import { toPlainLinkedInText } from "@/lib/text";
-import { textSimilarity, validateContent } from "@/lib/autopilot/validation";
+import { textSimilarity, validateContent, llmQualityCheck } from "@/lib/autopilot/validation";
 import { applyDiversityOverride, detectPostTypeFromTopic, type PostType } from "@/lib/autopilot/type-detection";
 
 export type AutopilotRunResult =
@@ -159,6 +159,65 @@ async function getRecentContents(userId: string, limit: number): Promise<string[
   return drafts.map((d) => d.content);
 }
 
+/**
+ * Returns up to 3 recently approved + 2 recently rejected autopilot post
+ * content strings for few-shot injection. Returns null if there aren't
+ * enough approved posts to provide a meaningful signal (< 3).
+ */
+async function getFeedbackExamples(userId: string): Promise<{ approved: string[]; rejected: string[] } | null> {
+  const approved = await prisma.postDraft.findMany({
+    where: { userId, isAutopilot: true, manualFeedback: "approved" },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { content: true },
+  });
+  if (approved.length < 3) return null;
+  const rejected = await prisma.postDraft.findMany({
+    where: { userId, isAutopilot: true, manualFeedback: { in: ["rejected", "discarded"] } },
+    orderBy: { createdAt: "desc" },
+    take: 2,
+    select: { content: true },
+  });
+  return {
+    approved: approved.slice(0, 3).map((d) => d.content.slice(0, 800)),
+    rejected: rejected.map((d) => d.content.slice(0, 800)),
+  };
+}
+
+/**
+ * Picks the post type that is most behind its configured pillar target
+ * (based on last N posts). Returns detectedType unchanged when no pillar
+ * is sufficiently lagging (> 5% deficit) or the type is penalised.
+ */
+function pickTypeByPillarTarget(
+  pillars: Record<string, number>,
+  recentTypes: PostType[],
+  detectedType: PostType,
+  penalisedTypes: PostType[],
+): PostType {
+  const total = Object.values(pillars).reduce((a, b) => a + b, 0);
+  if (total === 0) return detectedType;
+  const normalised: Record<string, number> = {};
+  for (const [k, v] of Object.entries(pillars)) normalised[k] = v / total;
+
+  const counts: Record<string, number> = {};
+  for (const t of recentTypes) counts[t] = (counts[t] ?? 0) + 1;
+  const n = recentTypes.length || 1;
+
+  let bestType: PostType | null = null;
+  let bestDeficit = 0.05; // minimum deficit threshold to trigger override
+  for (const [type, target] of Object.entries(normalised)) {
+    if (penalisedTypes.includes(type as PostType)) continue;
+    const actual = (counts[type] ?? 0) / n;
+    const deficit = target - actual;
+    if (deficit > bestDeficit) {
+      bestDeficit = deficit;
+      bestType = type as PostType;
+    }
+  }
+  return bestType ?? detectedType;
+}
+
 async function isTopicDuplicate(userId: string, topic: string, threshold = 0.8): Promise<boolean> {
   const recent = await prisma.topicPool.findMany({
     where: { status: "USED", source: { userId } },
@@ -265,13 +324,25 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
 
   // Personal experience bank (only if plan allows)
   let personalContext: { title: string; description: string } | null = null;
+  let feedbackExamples: { approved: string[]; rejected: string[] } | null = null;
   if (plan.experienceBank) {
-    personalContext = await findBestExperience(userId, topic);
+    [personalContext, feedbackExamples] = await Promise.all([
+      findBestExperience(userId, topic),
+      getFeedbackExamples(userId),
+    ]);
   }
 
   const penalisedTypes = await getPenalisedPostTypes(userId);
   const recentTypes = await getRecentPostTypes(userId, 5);
   let postType = detectPostTypeFromTopic(topic);
+
+  // Content pillar bias: if user configured pillar targets, bias toward the most-behind type
+  const configuredPillars = (rules.contentPillars as Record<string, number> | undefined) ?? {};
+  if (Object.keys(configuredPillars).length > 0) {
+    const recentTypes30 = await getRecentPostTypes(userId, 30);
+    postType = pickTypeByPillarTarget(configuredPillars, recentTypes30, postType, penalisedTypes);
+  }
+
   postType = applyDiversityOverride(postType, recentTypes, 2, penalisedTypes);
 
   let systemPrompt: string;
@@ -290,7 +361,24 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
   ];
   if (hookSuggestion) userInputLines.unshift(`HOOK_SUGGESTION: ${hookSuggestion}`);
   if (personalContext) userInputLines.push(`PERSONAL_CONTEXT: ${personalContext.title} — ${personalContext.description}`);
-  const userInput = userInputLines.join("\n");
+  const baseUserInput = userInputLines.join("\n");
+
+  // Feedback loop: prepend few-shot examples from past approved/rejected posts
+  let userInput = baseUserInput;
+  if (feedbackExamples && feedbackExamples.approved.length >= 3) {
+    const approvedBlock = feedbackExamples.approved
+      .map((p, i) => `[WORKED ${i + 1}]\n${p}`)
+      .join("\n\n");
+    const rejectedBlock =
+      feedbackExamples.rejected.length > 0
+        ? "\n\n" +
+          feedbackExamples.rejected.map((p, i) => `[DIDN'T WORK ${i + 1}]\n${p}`).join("\n\n")
+        : "";
+    userInput =
+      `Here are posts that worked well for this creator:\n${approvedBlock}` +
+      rejectedBlock +
+      `\n\n---\nNow generate a new post with these inputs:\n${baseUserInput}`;
+  }
 
   let raw: string;
   try {
@@ -311,19 +399,44 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
 
   const content = toPlainLinkedInText(raw);
   const recentContents = await getRecentContents(userId, 10);
-  const validation = validateContent(content, recentContents, { minScoreToApprove: minScore });
+
+  // Always run mechanical validation (hard-blocks like banned phrases + similarity)
+  const mechanical = validateContent(content, recentContents, { minScoreToApprove: minScore });
+  const hardBlocked = mechanical.reasons.some(
+    (r) => r.startsWith("Banned") || r.startsWith("Too similar"),
+  );
+
+  // LLM quality check — gracefully falls back to mechanical score on any error
+  const voiceForCheck = await prisma.voiceProfile.findUnique({
+    where: { userId },
+    select: { tone: true, niche: true },
+  });
+  const llmResult = await llmQualityCheck(client, content, voiceForCheck);
+
+  let finalScore: number;
+  let finalReasons: string[];
+  if (llmResult !== null) {
+    finalScore = hardBlocked ? Math.min(llmResult.score, 40) : llmResult.score;
+    finalReasons = [
+      ...(llmResult.feedback ? [llmResult.feedback] : []),
+      ...mechanical.reasons.filter((r) => r.startsWith("Banned") || r.startsWith("Too similar")),
+    ];
+  } else {
+    finalScore = mechanical.score;
+    finalReasons = mechanical.reasons;
+  }
 
   await prisma.autopilotLog.create({
     data: {
       userId,
       action: "VALIDATED",
       topic,
-      validationScore: validation.score,
-      error: validation.reasons.length ? validation.reasons.join("; ") : null,
+      validationScore: finalScore,
+      error: finalReasons.length ? finalReasons.join("; ") : null,
     },
   });
 
-  if (validation.score < 70) {
+  if (finalScore < 70) {
     await prisma.topicPool.update({ where: { id: topicId }, data: { status: "DISCARDED" } });
     const failures = (config.consecutiveFailures || 0) + 1;
     await prisma.autopilotConfig.update({
@@ -336,7 +449,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
     return {
       ok: false,
       action: "FAILED",
-      reason: `Quality too low (${validation.score}): ${validation.reasons.join(", ")}`,
+      reason: `Quality too low (${finalScore}): ${finalReasons.join(", ")}`,
       disableAutopilot: failures >= 3,
     };
   }
@@ -359,7 +472,7 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
   });
 
   // Email approval flow: do not schedule with GetLate until user approves via email (safety gate)
-  if (validation.score >= minScore) {
+  if (finalScore >= minScore) {
     const token = randomBytes(32).toString("hex");
     const approvalTo = await getApprovalEmailTo(userId);
 
@@ -387,18 +500,29 @@ export async function runAutopilotOnce(userId: string): Promise<AutopilotRunResu
           data: { userId, action: "FAILED", topic, draftId: draft.id, error: `Email: ${emailResult.error}` },
         });
       }
+    } else {
+      // No approval email configured — log a warning so this silent failure is visible
+      await prisma.autopilotLog.create({
+        data: {
+          userId,
+          action: "SKIPPED",
+          topic,
+          draftId: draft.id,
+          error: "No approval email configured (set APPROVAL_EMAIL env var or add one in Settings)",
+        },
+      });
     }
 
     await prisma.autopilotLog.create({
-      data: { userId, action: "VALIDATED", topic, draftId: draft.id, validationScore: validation.score },
+      data: { userId, action: "VALIDATED", topic, draftId: draft.id, validationScore: finalScore },
     });
     await prisma.autopilotConfig.update({
       where: { id: config.id },
       data: { lastRunAt: now, consecutiveFailures: 0 },
     });
 
-    return { ok: true, action: "PENDING_APPROVAL", draftId: draft.id, topic, score: validation.score };
+    return { ok: true, action: "PENDING_APPROVAL", draftId: draft.id, topic, score: finalScore };
   }
 
-  return { ok: true, action: "PENDING_REVIEW", draftId: draft.id, topic, score: validation.score };
+  return { ok: true, action: "PENDING_REVIEW", draftId: draft.id, topic, score: finalScore };
 }
