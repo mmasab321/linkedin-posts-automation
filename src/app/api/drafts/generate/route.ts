@@ -129,23 +129,34 @@ export async function POST(req: Request) {
     ].join("\n");
   }
 
-  const completion = await client.chat.completions.create({
-    model: "kimi-k2.5",
-    temperature: 1,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userInput },
-    ],
-  });
+  let completion;
+  try {
+    completion = await client.chat.completions.create({
+      model: "kimi-k2.5",
+      temperature: 1,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userInput },
+      ],
+    });
+  } catch (err: any) {
+    const msg = err?.message ?? "Unknown Kimi error";
+    return NextResponse.json({ error: `Kimi error: ${msg}` }, { status: 502 });
+  }
 
   let raw = completion.choices?.[0]?.message?.content ?? "";
+  if (!raw) return NextResponse.json({ error: "Kimi returned an empty response" }, { status: 502 });
 
   // Hook scoring — if the first line scores below 7, rewrite just the hook
-  const firstLine = raw.split("\n").find((l) => l.trim().length > 0) ?? "";
-  const hookScore = await scoreHook(client, firstLine);
-  if (hookScore < 7) {
-    const improved = await rewriteHook(client, systemPrompt, raw);
-    if (improved) raw = improved;
+  try {
+    const firstLine = raw.split("\n").find((l) => l.trim().length > 0) ?? "";
+    const hookScore = await scoreHook(client, firstLine);
+    if (hookScore < 7) {
+      const improved = await rewriteHook(client, systemPrompt, raw);
+      if (improved) raw = improved;
+    }
+  } catch {
+    // Hook scoring is non-critical — continue with original post if it fails
   }
 
   const content = toPlainLinkedInText(raw);
