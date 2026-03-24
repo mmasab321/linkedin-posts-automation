@@ -413,7 +413,7 @@ export function DashboardClient() {
   );
 
   return (
-    <div className="px-6 pb-12 max-w-7xl mx-auto">
+    <div className="px-6 pt-8 pb-12 max-w-7xl mx-auto">
       {/* Edit modal */}
       {editingId && editingDraft && (
         <EditModal
