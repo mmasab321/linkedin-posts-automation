@@ -2,8 +2,6 @@ import { Resend } from "resend";
 
 import { prisma } from "@/lib/prisma";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.RESEND_FROM ?? "LinkedIn Auto-Poster <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -100,6 +98,7 @@ export async function sendApprovalEmail(params: SendApprovalEmailParams): Promis
 </html>
 `.trim();
 
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { data, error } = await resend.emails.send({
     from: FROM,
     to: [to],
