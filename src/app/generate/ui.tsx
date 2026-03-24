@@ -58,7 +58,8 @@ export function GenerateForm() {
         body: JSON.stringify({ url: youtubeUrl }),
       });
       const tJson = await tRes.json().catch(() => null);
-      if (!tRes.ok) throw new Error(tJson?.error ?? "Could not fetch transcript.");
+      if (!tRes.ok) throw new Error("Transcript: " + (tJson?.error ?? "Could not fetch transcript."));
+      if (!tJson?.transcript) throw new Error("Transcript: Empty response from server.");
       setFetchingTranscript(false);
 
       // Step 2: generate post from transcript
@@ -69,7 +70,7 @@ export function GenerateForm() {
         body: JSON.stringify({ source: "youtube", transcript: tJson.transcript, toneModifier: youtubeTone }),
       });
       const gJson = await gRes.json().catch(() => null);
-      if (!gRes.ok) throw new Error(gJson?.error ?? "Failed to generate.");
+      if (!gRes.ok) throw new Error("Generate: " + (gJson?.error ?? "Failed to generate."));
       router.push("/dashboard");
     } catch (err: any) {
       setError(err?.message ?? "Failed to generate.");
