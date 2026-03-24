@@ -30,12 +30,21 @@ async function fetchTranscript(videoId: string): Promise<string> {
   const html = await pageRes.text();
 
   // Extract ytInitialPlayerResponse from the page
-  const match = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*(?:;|<\/script>)/s);
-  if (!match) throw new Error("Could not parse YouTube page");
+  const startIdx = html.indexOf("ytInitialPlayerResponse");
+  if (startIdx === -1) throw new Error("Could not parse YouTube page");
+  const jsonStart = html.indexOf("{", startIdx);
+  if (jsonStart === -1) throw new Error("Could not parse YouTube page");
+
+  let depth = 0;
+  let jsonEnd = jsonStart;
+  for (let i = jsonStart; i < html.length; i++) {
+    if (html[i] === "{") depth++;
+    else if (html[i] === "}") { depth--; if (depth === 0) { jsonEnd = i; break; } }
+  }
 
   let playerResponse: any;
   try {
-    playerResponse = JSON.parse(match[1]);
+    playerResponse = JSON.parse(html.slice(jsonStart, jsonEnd + 1));
   } catch {
     throw new Error("Could not parse player response");
   }
