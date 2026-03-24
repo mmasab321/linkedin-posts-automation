@@ -15,74 +15,28 @@ function extractVideoId(url: string): string | null {
 }
 
 async function fetchTranscript(videoId: string): Promise<string> {
-  // Fetch the YouTube page as a browser would
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en&gl=US`, {
+  // Use Jina AI reader to extract YouTube transcript — works from serverless
+  const jinaUrl = `https://r.jina.ai/https://www.youtube.com/watch?v=${videoId}`;
+  const res = await fetch(jinaUrl, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      "Accept-Language": "en-US,en;q=0.9",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Cookie": "CONSENT=YES+cb; GPS=1; VISITOR_INFO1_LIVE=; YSC=; PREF=f4=4000000&tz=Europe.London",
-      "Referer": "https://www.google.com/",
+      Accept: "text/plain",
+      "X-Return-Format": "text",
     },
   });
 
-  if (!pageRes.ok) throw new Error("Could not reach YouTube");
-  const html = await pageRes.text();
+  if (!res.ok) throw new Error("Could not fetch transcript");
 
-  // Extract ytInitialPlayerResponse from the page
-  const startIdx = html.indexOf("ytInitialPlayerResponse");
-  if (startIdx === -1) throw new Error("Could not parse YouTube page");
-  const jsonStart = html.indexOf("{", startIdx);
-  if (jsonStart === -1) throw new Error("Could not parse YouTube page");
+  const text = await res.text();
+  if (!text || text.length < 100) throw new Error("No transcript found for this video");
 
-  let depth = 0;
-  let jsonEnd = jsonStart;
-  for (let i = jsonStart; i < html.length; i++) {
-    if (html[i] === "{") depth++;
-    else if (html[i] === "}") { depth--; if (depth === 0) { jsonEnd = i; break; } }
-  }
-
-  let playerResponse: any;
-  try {
-    playerResponse = JSON.parse(html.slice(jsonStart, jsonEnd + 1));
-  } catch {
-    throw new Error("Could not parse player response");
-  }
-
-  const captionTracks =
-    playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-
-  if (!captionTracks?.length) {
-    throw new Error("No captions available for this video");
-  }
-
-  // Prefer English, fall back to first available
-  const track =
-    captionTracks.find((t: any) => t.languageCode === "en") ||
-    captionTracks.find((t: any) => t.languageCode?.startsWith("en")) ||
-    captionTracks[0];
-
-  const captionUrl = `${track.baseUrl}&fmt=json3`;
-  const captionRes = await fetch(captionUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    },
-  });
-
-  if (!captionRes.ok) throw new Error("Could not fetch caption track");
-
-  const captionData = await captionRes.json();
-
-  const transcript = captionData.events
-    ?.filter((e: any) => e.segs)
-    ?.flatMap((e: any) => e.segs?.map((s: any) => s.utf8 ?? ""))
-    ?.join(" ")
-    ?.replace(/\[.*?\]/g, "") // remove [Music], [Applause] etc
-    ?.replace(/\s+/g, " ")
-    ?.trim();
+  // Jina returns the full page text — strip the header/metadata lines
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  // Find where the transcript content starts (after title/metadata)
+  const transcriptStart = lines.findIndex(
+    (l) => l.length > 80 || l.includes(".") || l.includes(","),
+  );
+  const transcriptLines = transcriptStart > 0 ? lines.slice(transcriptStart) : lines;
+  const transcript = transcriptLines.join(" ").replace(/\s+/g, " ").trim();
 
   if (!transcript) throw new Error("Transcript is empty");
   return transcript.slice(0, 8000);
