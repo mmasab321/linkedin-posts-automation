@@ -1,11 +1,7 @@
 "use client";
 
 import * as React from "react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Rss, BookOpen, RefreshCw, Plus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const POST_TYPES = ["story", "insight", "project", "tip", "hot_take", "results"] as const;
@@ -66,8 +62,7 @@ export function AutopilotTab() {
   const [pillars, setPillars] = React.useState<Record<PostTypeName, number>>(DEFAULT_PILLARS);
 
   async function load() {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const [statusRes, configRes, sourcesRes, experiencesRes] = await Promise.all([
         fetch("/api/autopilot/status"),
@@ -96,21 +91,17 @@ export function AutopilotTab() {
       }
       if (sourcesJson?.sources) setSources(sourcesJson.sources);
       if (experiencesJson?.entries) setExperiences(experiencesJson.entries);
-    } catch (e) {
+    } catch {
       setError("Failed to load autopilot.");
     } finally {
       setLoading(false);
     }
   }
 
-  React.useEffect(() => {
-    load();
-  }, []);
+  React.useEffect(() => { load(); }, []);
 
   async function toggleEnabled() {
-    setToggling(true);
-    setError(null);
-    setMessage(null);
+    setToggling(true); setError(null); setMessage(null);
     try {
       const res = await fetch("/api/autopilot/toggle", {
         method: "POST",
@@ -130,9 +121,7 @@ export function AutopilotTab() {
   }
 
   async function saveConfig() {
-    setSaving(true);
-    setError(null);
-    setMessage(null);
+    setSaving(true); setError(null); setMessage(null);
     try {
       await fetch("/api/autopilot/config", {
         method: "PATCH",
@@ -140,10 +129,7 @@ export function AutopilotTab() {
         body: JSON.stringify({
           scheduleTime,
           maxAutoPerMonth,
-          validationRules: {
-            minScoreToApprove: minScore,
-            contentPillars: pillarsEnabled ? pillars : {},
-          },
+          validationRules: { minScoreToApprove: minScore, contentPillars: pillarsEnabled ? pillars : {} },
         }),
       });
       setMessage("Config saved.");
@@ -191,17 +177,12 @@ export function AutopilotTab() {
   }
 
   async function fetchRssNow() {
-    setFetchRssLoading(true);
-    setError(null);
-    setMessage(null);
+    setFetchRssLoading(true); setError(null); setMessage(null);
     try {
       const res = await fetch("/api/admin/fetch-rss", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Failed to fetch RSS");
-      const msg = data.added != null
-        ? `RSS fetch done: ${data.added} topics added, ${data.skipped} skipped.`
-        : "RSS fetch done.";
-      setMessage(msg);
+      setMessage(data.added != null ? `RSS fetch done: ${data.added} topics added, ${data.skipped} skipped.` : "RSS fetch done.");
       await load();
     } catch (e: any) {
       setError(e?.message ?? "Failed to fetch RSS.");
@@ -212,8 +193,7 @@ export function AutopilotTab() {
 
   async function addExperience() {
     if (!expTitle.trim() || !expDescription.trim() || !expTags.trim()) return;
-    setExpSaving(true);
-    setError(null);
+    setExpSaving(true); setError(null);
     try {
       const res = await fetch("/api/admin/experiences", {
         method: "POST",
@@ -224,9 +204,7 @@ export function AutopilotTab() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error ?? "Failed to add");
       }
-      setExpTitle("");
-      setExpDescription("");
-      setExpTags("");
+      setExpTitle(""); setExpDescription(""); setExpTags("");
       await load();
     } catch (e: any) {
       setError(e?.message ?? "Failed to add experience.");
@@ -235,192 +213,327 @@ export function AutopilotTab() {
     }
   }
 
-  if (loading) return <div className="text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="text-sm text-on-surface-variant">Loading…</div>;
+
+  const rssSources = sources.filter((s) => s.type === "RSS");
+  const evergreenSources = sources.filter((s) => s.type === "EVERGREEN");
+  const totalPillar = Object.values(pillars).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div>
-          <div className="font-medium">Autopilot Mode</div>
-          <div className="text-sm text-neutral-500">Hands-free: system picks topics, generates and schedules within your quota.</div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={toggleEnabled}
-          disabled={toggling}
-          className="inline-flex items-center gap-2"
-        >
-          <span
-            className={cn(
-              "relative inline-flex h-7 w-12 flex-shrink-0 rounded-full transition-colors duration-200",
-              enabled ? "bg-emerald-600" : "bg-neutral-300 dark:bg-neutral-600",
-            )}
+      {message && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">{message}</div>}
+      {error && <div className="rounded-xl border border-error/20 bg-error-container/10 p-4 text-sm text-error">{error}</div>}
+
+      {/* Automation Engine card */}
+      <div className="bg-surface-container rounded-xl p-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-on-surface">Automation Engine</h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Hands-free: system picks topics, generates and schedules within your quota.
+            </p>
+          </div>
+          {/* Toggle */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            onClick={toggleEnabled}
+            disabled={toggling}
+            className="flex items-center gap-3 disabled:opacity-50"
           >
             <span
               className={cn(
-                "absolute top-[2px] h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200",
-                enabled ? "left-[2px] translate-x-5" : "left-[2px] translate-x-0",
+                "relative inline-flex h-7 w-12 flex-shrink-0 rounded-full transition-colors duration-200",
+                enabled ? "bg-emerald-500" : "bg-surface-container-highest"
               )}
+            >
+              <span
+                className={cn(
+                  "absolute top-[2px] h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200",
+                  enabled ? "left-[2px] translate-x-5" : "left-[2px] translate-x-0"
+                )}
+              />
+            </span>
+            <span className={cn("text-sm font-bold uppercase tracking-wider", enabled ? "text-emerald-400" : "text-on-surface-variant")}>
+              {enabled ? "On" : "Off"}
+            </span>
+          </button>
+        </div>
+
+        {/* Status stats */}
+        {status && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/10">
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-1">Auto Used</p>
+              <p className="text-lg font-black text-on-surface">{status.autopilotUsedThisMonth}<span className="text-on-surface-variant font-normal text-sm">/{status.maxAutoPerMonth}</span></p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-1">Topics Pool</p>
+              <p className="text-lg font-black text-on-surface">{status.pendingTopicsInPool}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-1">Min Score</p>
+              <p className="text-lg font-black text-on-surface">{minScore}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-1">Status</p>
+              {status.pausedUntil ? (
+                <p className="text-sm font-bold text-amber-400">Paused</p>
+              ) : (
+                <p className={cn("text-sm font-bold", enabled ? "text-emerald-400" : "text-on-surface-variant")}>
+                  {enabled ? "Active" : "Inactive"}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Bento grid: sliders */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-3">Post Time (24h)</p>
+            <input
+              type="time"
+              value={scheduleTime}
+              onChange={(e) => setScheduleTime(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
             />
-          </span>
-          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            {enabled ? "On" : "Off"}
-          </span>
+          </div>
+          <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">Max Posts/Mo</p>
+              <span className="text-lg font-black text-primary">{maxAutoPerMonth}</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={maxAutoPerMonthLimit}
+              value={maxAutoPerMonth}
+              onChange={(e) => setMaxAutoPerMonth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+            <div className="flex justify-between text-[10px] text-on-surface-variant mt-1">
+              <span>1</span><span>{maxAutoPerMonthLimit}</span>
+            </div>
+          </div>
+          <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant mb-3">Quality Threshold</p>
+            <select
+              value={minScore}
+              onChange={(e) => setMinScore(Number(e.target.value))}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all appearance-none"
+            >
+              <option value={70}>Relaxed (70+)</option>
+              <option value={85}>Strict (85+)</option>
+              <option value={95}>Very strict (95+)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Content Pillars */}
+        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">Content Pillars</p>
+              <p className="text-xs text-on-surface-variant/60 mt-0.5">Set target % per post type for bias balancing</p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <div
+                className={cn(
+                  "relative h-6 w-10 rounded-full transition-colors duration-200",
+                  pillarsEnabled ? "bg-primary/40" : "bg-surface-container-highest"
+                )}
+                onClick={() => setPillarsEnabled(!pillarsEnabled)}
+              >
+                <span className={cn("absolute top-[2px] h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200", pillarsEnabled ? "left-[2px] translate-x-4" : "left-[2px] translate-x-0")} />
+              </div>
+              <span className="text-xs font-bold text-on-surface-variant uppercase">{pillarsEnabled ? "On" : "Off"}</span>
+            </label>
+          </div>
+          {pillarsEnabled && (
+            <>
+              <div className="space-y-3">
+                {POST_TYPES.map((type) => (
+                  <div key={type} className="flex items-center gap-4">
+                    <span className="w-20 text-xs font-medium capitalize text-on-surface-variant">{type.replace("_", " ")}</span>
+                    <div className="flex-1 relative">
+                      <div className="h-1.5 bg-surface-container-highest rounded-full">
+                        <div className="h-1.5 bg-primary rounded-full transition-all" style={{ width: `${pillars[type]}%` }} />
+                      </div>
+                      <input
+                        type="range"
+                        min={0} max={100} step={5}
+                        value={pillars[type]}
+                        onChange={(e) => setPillars((prev) => ({ ...prev, [type]: Number(e.target.value) }))}
+                        className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+                      />
+                    </div>
+                    <span className="w-10 text-right text-xs font-bold text-primary">{pillars[type]}%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-on-surface-variant mt-3">
+                Total: <span className={cn("font-bold", totalPillar === 0 ? "text-amber-400" : "text-on-surface")}>{totalPillar}%</span> — normalised automatically.
+              </p>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={saveConfig}
+          disabled={saving}
+          className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Config"}
         </button>
       </div>
 
-      {status && (
-        <div className="rounded-lg border bg-neutral-50 p-3 text-sm dark:bg-neutral-900/50">
-          <div className="grid gap-1 sm:grid-cols-2">
-            <span>Quota this month: {status.autopilotUsedThisMonth} / {status.maxAutoPerMonth} auto</span>
-            <span>Topics in pool: {status.pendingTopicsInPool}</span>
-            <span>Min score to auto-approve: {minScore}</span>
-            {status.pausedUntil && <span className="text-amber-600">Paused until {new Date(status.pausedUntil).toLocaleString()}</span>}
-          </div>
-        </div>
-      )}
+      {/* Content Sources */}
+      <div className="bg-surface-container rounded-xl p-8">
+        <h2 className="text-xl font-bold text-on-surface mb-1">Content Sources</h2>
+        <p className="text-sm text-on-surface-variant mb-6">RSS feeds and evergreen topics for autopilot to draw from.</p>
 
-      <div className="space-y-2">
-        <Label>Post at (24h)</Label>
-        <Input
-          type="time"
-          value={scheduleTime}
-          onChange={(e) => setScheduleTime(e.target.value)}
-          className="max-w-[8rem]"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Max auto-posts per month (1–{maxAutoPerMonthLimit})</Label>
-        <input
-          type="range"
-          min={1}
-          max={maxAutoPerMonthLimit}
-          value={maxAutoPerMonth}
-          onChange={(e) => setMaxAutoPerMonth(Number(e.target.value))}
-          className="w-full max-w-xs"
-        />
-        <span className="text-sm">{maxAutoPerMonth}</span>
-      </div>
-      <div className="space-y-2">
-        <Label>Validation: min score to auto-approve (70–95)</Label>
-        <select
-          value={minScore}
-          onChange={(e) => setMinScore(Number(e.target.value))}
-          className="rounded border border-neutral-300 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-        >
-          <option value={70}>Relaxed (70+)</option>
-          <option value={85}>Strict (85+)</option>
-          <option value={95}>Very strict (95+)</option>
-        </select>
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="pillars-toggle"
-            checked={pillarsEnabled}
-            onChange={(e) => setPillarsEnabled(e.target.checked)}
-            className="rounded border-neutral-300"
-          />
-          <Label htmlFor="pillars-toggle" className="cursor-pointer">Content pillar targets</Label>
-        </div>
-        {pillarsEnabled && (
-          <div className="space-y-3 pl-1 pt-1">
-            <p className="text-xs text-neutral-500">
-              Set a target % per post type. Autopilot biases toward whichever pillar is most behind its
-              target (based on your last 30 posts). Values don&apos;t need to sum to 100.
-            </p>
-            <div className="space-y-2">
-              {POST_TYPES.map((type) => (
-                <div key={type} className="flex items-center gap-3">
-                  <span className="w-20 text-sm capitalize text-neutral-300">{type.replace("_", " ")}</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={pillars[type]}
-                    onChange={(e) => setPillars((prev) => ({ ...prev, [type]: Number(e.target.value) }))}
-                    className="w-32 accent-indigo-500"
-                  />
-                  <span className="w-10 text-right text-sm text-neutral-300">{pillars[type]}%</span>
-                </div>
-              ))}
+        <div className="space-y-6">
+          {/* RSS */}
+          <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+            <div className="flex items-center gap-2 mb-3">
+              <Rss size={16} className="text-primary" />
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">RSS Feed URL</p>
             </div>
-            <p className="text-xs text-neutral-500">
-              Total:{" "}
-              <span className={cn(Object.values(pillars).reduce((a, b) => a + b, 0) === 0 ? "text-amber-400" : "text-slate-300")}>
-                {Object.values(pillars).reduce((a, b) => a + b, 0)}%
-              </span>
-              {" "}— normalised automatically.
-            </p>
-          </div>
-        )}
-      </div>
-
-      <Button type="button" onClick={saveConfig} disabled={saving}>
-        {saving ? "Saving…" : "Save config"}
-      </Button>
-
-      <div className="border-t pt-4">
-        <Label className="mb-2 block">Content sources</Label>
-        <div className="space-y-3">
-          <div>
-            <div className="text-xs text-neutral-500 mb-1">RSS feed URL</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input value={newRssUrl} onChange={(e) => setNewRssUrl(e.target.value)} placeholder="https://..." className="max-w-sm" />
-              <Button type="button" variant="outline" size="sm" onClick={addRss}>Add</Button>
-              <Button type="button" variant="outline" size="sm" onClick={fetchRssNow} disabled={fetchRssLoading || sources.filter((s) => s.type === "RSS").length === 0}>
-                {fetchRssLoading ? "Fetching…" : "Fetch RSS now"}
-              </Button>
+            <div className="flex gap-2 mb-3">
+              <input
+                value={newRssUrl}
+                onChange={(e) => setNewRssUrl(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+              />
+              <button
+                type="button"
+                onClick={addRss}
+                className="px-4 py-2.5 bg-surface-container-high border border-outline-variant/20 text-[11px] font-bold rounded-lg hover:border-primary/40 transition-all uppercase tracking-tighter flex items-center gap-1 text-on-surface-variant"
+              >
+                <Plus size={12} /> Add
+              </button>
+              <button
+                type="button"
+                onClick={fetchRssNow}
+                disabled={fetchRssLoading || rssSources.length === 0}
+                className="px-4 py-2.5 bg-secondary-container text-on-secondary-container text-[11px] font-bold rounded-lg hover:opacity-90 transition-all uppercase tracking-tighter disabled:opacity-50 flex items-center gap-1"
+              >
+                <RefreshCw size={12} />
+                {fetchRssLoading ? "Fetching…" : "Fetch Now"}
+              </button>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">RSS titles are fetched daily by cron (7:00 UTC); use &quot;Fetch RSS now&quot; to refresh immediately.</p>
+            <p className="text-[10px] text-on-surface-variant/60">RSS titles fetched daily at 7:00 UTC. Use &quot;Fetch Now&quot; to refresh immediately.</p>
+            {rssSources.length > 0 && (
+              <ul className="mt-3 space-y-1">
+                {rssSources.map((s) => (
+                  <li key={s.id} className="flex items-center gap-2 text-xs text-on-surface-variant">
+                    <span className={cn("w-2 h-2 rounded-full flex-none", s.isActive ? "bg-emerald-500" : "bg-surface-container-highest")} />
+                    {s.url || s.title.slice(0, 60)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div>
-            <div className="text-xs text-neutral-500 mb-1">Evergreen topics (one per line)</div>
-            <Textarea value={newEvergreen} onChange={(e) => setNewEvergreen(e.target.value)} placeholder="Why I stopped using X&#10;The $5k mistake..." rows={3} />
-            <Button type="button" variant="outline" size="sm" onClick={addEvergreen} className="mt-1">Add</Button>
+
+          {/* Evergreen */}
+          <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={16} className="text-primary" />
+              <p className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">Evergreen Topics</p>
+              <span className="text-[10px] text-on-surface-variant/60">(one per line)</span>
+            </div>
+            <textarea
+              value={newEvergreen}
+              onChange={(e) => setNewEvergreen(e.target.value)}
+              placeholder={"Why I stopped using X\nThe $5k mistake..."}
+              rows={3}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all resize-none mb-2"
+            />
+            <button
+              type="button"
+              onClick={addEvergreen}
+              className="px-4 py-2 bg-surface-container-high border border-outline-variant/20 text-[11px] font-bold rounded-lg hover:border-primary/40 transition-all uppercase tracking-tighter flex items-center gap-1 text-on-surface-variant"
+            >
+              <Plus size={12} /> Add Topics
+            </button>
+            {evergreenSources.length > 0 && (
+              <ul className="mt-3 space-y-1">
+                {evergreenSources.map((s) => (
+                  <li key={s.id} className="text-xs text-on-surface-variant">{s.title.slice(0, 60)}{s.title.length > 60 ? "…" : ""}</li>
+                ))}
+              </ul>
+            )}
           </div>
-          {sources.length > 0 && (
-            <ul className="text-sm">
-              {sources.map((s) => (
-                <li key={s.id} className="flex items-center gap-2">
-                  <span className={cn(!s.isActive && "text-neutral-400")}>[{s.type}] {s.url || s.title.slice(0, 40)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
 
-      <div className="border-t pt-4">
-        <Label className="mb-2 block">Your experience bank</Label>
-        <p className="text-xs text-neutral-500 mb-2">Short experiences (title + description + tags) that autopilot can use when a topic matches your tags.</p>
-        <div className="space-y-2 mb-3">
-          <Input value={expTitle} onChange={(e) => setExpTitle(e.target.value)} placeholder="Title (e.g. Built SubSlice in a weekend)" className="max-w-md" />
-          <Textarea value={expDescription} onChange={(e) => setExpDescription(e.target.value)} placeholder="Description (1–3 sentences)" rows={2} className="max-w-md" />
-          <Input value={expTags} onChange={(e) => setExpTags(e.target.value)} placeholder="Tags, comma-separated (e.g. react-native,mvp,speed)" className="max-w-md" />
-          <Button type="button" variant="outline" size="sm" onClick={addExperience} disabled={expSaving || !expTitle.trim() || !expDescription.trim() || !expTags.trim()}>
-            {expSaving ? "Adding…" : "Add"}
-          </Button>
+      {/* Experience Bank */}
+      <div className="bg-surface-container rounded-xl p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <BookOpen size={20} className="text-primary" />
+          <h2 className="text-xl font-bold text-on-surface">Experience Bank</h2>
         </div>
+        <p className="text-sm text-on-surface-variant mb-6">
+          Short experiences autopilot can reference when a topic matches your tags.
+        </p>
+
+        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10 mb-4">
+          <div className="space-y-3">
+            <input
+              value={expTitle}
+              onChange={(e) => setExpTitle(e.target.value)}
+              placeholder="Title (e.g. Built SubSlice in a weekend)"
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+            />
+            <textarea
+              value={expDescription}
+              onChange={(e) => setExpDescription(e.target.value)}
+              placeholder="Description (1–3 sentences)"
+              rows={2}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all resize-none"
+            />
+            <input
+              value={expTags}
+              onChange={(e) => setExpTags(e.target.value)}
+              placeholder="Tags, comma-separated (e.g. react-native,mvp,speed)"
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+            />
+            <button
+              type="button"
+              onClick={addExperience}
+              disabled={expSaving || !expTitle.trim() || !expDescription.trim() || !expTags.trim()}
+              className="px-5 py-2 text-[11px] font-bold bg-primary text-on-primary rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all uppercase disabled:opacity-50 flex items-center gap-1"
+            >
+              <Plus size={12} />
+              {expSaving ? "Adding…" : "Add Entry"}
+            </button>
+          </div>
+        </div>
+
         {experiences.length > 0 && (
-          <ul className="text-sm space-y-1">
+          <ul className="space-y-2">
             {experiences.map((e) => (
-              <li key={e.id} className="rounded border border-white/10 bg-white/5 px-2 py-1.5">
-                <span className="font-medium">{e.title}</span>
-                <span className="text-neutral-500 ml-2">— {e.description.slice(0, 60)}{e.description.length > 60 ? "…" : ""}</span>
-                <span className="text-xs text-neutral-400 ml-2">[{e.tags}]</span>
+              <li key={e.id} className="rounded-xl border border-outline-variant/10 bg-surface-container-low px-4 py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-sm font-semibold text-on-surface">{e.title}</span>
+                    <p className="text-xs text-on-surface-variant mt-0.5">{e.description.slice(0, 80)}{e.description.length > 80 ? "…" : ""}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1 flex-none">
+                    {e.tags.split(",").map((t) => (
+                      <span key={t} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{t.trim()}</span>
+                    ))}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
-
-      {message && <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-300">{message}</div>}
-      {error && <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
     </div>
   );
 }

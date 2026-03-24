@@ -2,10 +2,6 @@
 
 import * as React from "react";
 
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
 export function PromptTab() {
   const [systemPrompt, setSystemPrompt] = React.useState("");
   const [loading, setLoading] = React.useState(true);
@@ -28,14 +24,10 @@ export function PromptTab() {
     }
   }
 
-  React.useEffect(() => {
-    load();
-  }, []);
+  React.useEffect(() => { load(); }, []);
 
   async function save() {
-    setSaving(true);
-    setMessage(null);
-    setError(null);
+    setSaving(true); setMessage(null); setError(null);
     try {
       const res = await fetch("/api/user/prompt", {
         method: "PUT",
@@ -55,9 +47,7 @@ export function PromptTab() {
   }
 
   async function resetToDefault() {
-    setResetting(true);
-    setMessage(null);
-    setError(null);
+    setResetting(true); setMessage(null); setError(null);
     try {
       const res = await fetch("/api/user/prompt?default=true");
       const data = await res.json().catch(() => ({}));
@@ -78,38 +68,53 @@ export function PromptTab() {
     }
   }
 
-  if (loading) return <div className="text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="text-sm text-on-surface-variant">Loading…</div>;
 
   return (
-    <div className="space-y-4 border-t pt-4">
-      <Label className="block">System prompt (LLM)</Label>
-      <p className="text-xs text-neutral-500">
-        This prompt is used when generating LinkedIn drafts. Edit to match your voice and niche.
-      </p>
-      <Textarea
-        value={systemPrompt}
-        onChange={(e) => setSystemPrompt(e.target.value)}
-        rows={18}
-        className="font-mono text-sm"
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
-        <Button type="button" variant="outline" onClick={resetToDefault} disabled={resetting}>
-          {resetting ? "Resetting…" : "Reset to default"}
-        </Button>
+    <div className="bg-surface-container rounded-xl p-8 mt-6">
+      <div className="flex justify-between mb-6 items-start">
+        <div>
+          <h2 className="text-xl font-bold text-on-surface">System Personality</h2>
+          <p className="text-sm text-on-surface-variant mt-1">
+            The core prompt that dictates your writing style, formatting, and constraints.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={resetToDefault}
+            disabled={resetting}
+            className="px-5 py-2 text-[11px] font-bold text-on-surface-variant hover:bg-surface-bright rounded-lg transition-all uppercase disabled:opacity-50"
+          >
+            {resetting ? "Resetting…" : "Reset to Default"}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="px-5 py-2 text-[11px] font-bold bg-primary text-on-primary rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all uppercase disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
       </div>
-      {message && (
-        <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-300">
-          {message}
+
+      {message && <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">{message}</div>}
+      {error && <div className="mb-4 rounded-xl border border-error/20 bg-error-container/10 p-4 text-sm text-error">{error}</div>}
+
+      <div className="relative">
+        <textarea
+          value={systemPrompt}
+          onChange={(e) => setSystemPrompt(e.target.value)}
+          rows={18}
+          spellCheck={false}
+          className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-6 text-sm font-mono text-on-surface leading-relaxed focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-all outline-none resize-none"
+        />
+        <div className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/80 backdrop-blur-md rounded-lg border border-outline-variant/20">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">LLM: Kimi (Moonshot)</span>
         </div>
-      )}
-      {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
-          {error}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

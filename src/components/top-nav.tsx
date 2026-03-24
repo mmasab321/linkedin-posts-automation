@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { cn } from "@/lib/utils";
+import { Bell, CircleUser } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Dashboard" },
@@ -12,60 +13,94 @@ const links = [
 
 export function TopNav({ className }: { className?: string }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
 
   return (
-    <header className={cn("sticky top-0 z-50 border-b border-white/5 bg-[#0B0F19]/60 backdrop-blur-xl supports-[backdrop-filter]:bg-[#0B0F19]/40", className)}>
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2 group">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_15px_rgba(99,102,241,0.5)] group-hover:scale-105 transition-transform">
-            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold tracking-wide text-slate-100 hidden sm:block">
-            Auto-Poster
-          </span>
+    <header className={`fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-surface-container-low font-sans antialiased tracking-tight border-b border-outline-variant/10 ${className ?? ""}`}>
+      <div className="flex items-center gap-8">
+        <Link href="/dashboard" className="text-xl font-black tracking-tighter text-on-surface">
+          Auto-Poster
         </Link>
-        <nav className="flex items-center gap-1 sm:gap-2 text-sm font-medium">
-          {status === "loading" ? (
-            <span className="text-slate-500">…</span>
-          ) : session ? (
-            <>
-              {links.map((l) => (
-                <Link key={l.href} href={l.href} className="relative rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5">
+        {status !== "loading" && session && (
+          <nav className="hidden md:flex items-center gap-6">
+            {links.map((l) => {
+              const active = pathname === l.href || pathname.startsWith(l.href + "/");
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={
+                    active
+                      ? "text-[#6366f1] font-bold border-b-2 border-[#6366f1] pb-1 transition-colors"
+                      : "text-on-surface-variant hover:text-on-surface transition-colors"
+                  }
+                >
                   {l.label}
                 </Link>
-              ))}
-              {session.user?.isAdmin && (
-                <Link href="/admin" className="relative rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5">
-                  Admin
-                </Link>
-              )}
-              <span className="text-slate-500 mx-1">|</span>
-              <span className="text-slate-400 px-2 truncate max-w-[120px]" title={session.user?.email ?? undefined}>
-                {session.user?.email ?? session.user?.name ?? "Account"}
-              </span>
-              <button
-                type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="rounded-full px-4 py-2 text-slate-400 transition-colors hover:text-slate-50 hover:bg-white/5"
+              );
+            })}
+            {session.user?.isAdmin && (
+              <Link
+                href="/admin"
+                className={
+                  pathname === "/admin"
+                    ? "text-[#6366f1] font-bold border-b-2 border-[#6366f1] pb-1 transition-colors"
+                    : "text-on-surface-variant hover:text-on-surface transition-colors"
+                }
               >
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/signin" className="rounded-full px-4 py-2 text-slate-400 hover:text-slate-50 hover:bg-white/5">
-                Sign in
+                Admin
               </Link>
-              <Link href="/signup" className="rounded-full px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-500">
-                Sign up
-              </Link>
-            </>
-          )}
-        </nav>
+            )}
+          </nav>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        {status === "loading" ? (
+          <span className="text-on-surface-variant text-sm">…</span>
+        ) : session ? (
+          <>
+            <button
+              type="button"
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all active:scale-95"
+            >
+              <Bell size={20} />
+            </button>
+            <button
+              type="button"
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-lg transition-all active:scale-95"
+            >
+              <CircleUser size={20} />
+            </button>
+            <span className="text-on-surface-variant text-sm px-2 truncate max-w-[140px] hidden sm:block" title={session.user?.email ?? undefined}>
+              {session.user?.email ?? session.user?.name ?? "Account"}
+            </span>
+            <span className="text-outline-variant mx-1 hidden sm:block">|</span>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="text-on-surface-variant hover:text-on-surface text-sm font-medium px-3 py-1.5 rounded-lg hover:bg-surface-container transition-all"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/signin"
+              className="text-on-surface-variant hover:text-on-surface text-sm px-4 py-2 rounded-lg hover:bg-surface-container transition-all"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/signup"
+              className="text-sm font-bold px-4 py-2 rounded-full bg-primary-container text-on-primary-container hover:opacity-90 transition-all"
+            >
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
     </header>
   );
 }
-
