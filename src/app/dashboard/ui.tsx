@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Trash2, CheckCircle, Clock, TrendingUp, Bot, BarChart2, Circle, Plus, X, Eye, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, CheckCircle, Clock, TrendingUp, Bot, BarChart2, Circle, Plus, X, Eye, MessageSquare, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function toDateTimeLocal(iso: string): string {
@@ -215,6 +215,115 @@ function EditModal({
   );
 }
 
+function TopicQueueModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [topics, setTopics] = React.useState<{ id: string; title: string; source?: { type: string } }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [newTopic, setNewTopic] = React.useState("");
+  const [adding, setAdding] = React.useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/topics?status=PENDING&limit=100");
+      const j = await res.json();
+      setTopics(j.topics ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { load(); }, []);
+
+  async function deleteTopic(id: string) {
+    setDeletingId(id);
+    await fetch(`/api/admin/topics/${id}`, { method: "DELETE" });
+    setTopics((prev) => prev.filter((t) => t.id !== id));
+    setDeletingId(null);
+    onChanged();
+  }
+
+  async function addTopic() {
+    const lines = newTopic.split("\n").map((t) => t.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+    setAdding(true);
+    try {
+      // Add as evergreen source topics
+      await fetch("/api/admin/content-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "EVERGREEN", title: lines.join("\n") }),
+      });
+      setNewTopic("");
+      await load();
+      onChanged();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-surface-container w-full max-w-lg rounded-2xl shadow-2xl border border-outline-variant/20 flex flex-col max-h-[80vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+          <div className="flex items-center gap-2">
+            <ListTodo size={18} className="text-primary" />
+            <h2 className="text-base font-bold text-on-surface">Topic Queue</h2>
+            <span className="text-xs text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full">{topics.length}</span>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+            <X size={18} className="text-on-surface-variant" />
+          </button>
+        </div>
+
+        {/* Topic list */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+          {loading ? (
+            <p className="text-sm text-on-surface-variant">Loading…</p>
+          ) : topics.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No pending topics.</p>
+          ) : (
+            topics.map((t) => (
+              <div key={t.id} className="flex items-start gap-3 p-3 rounded-xl bg-surface-container-low border border-outline-variant/10 group">
+                <Circle size={6} className="text-primary fill-primary flex-none mt-1.5" />
+                <span className="flex-1 text-sm text-on-surface leading-snug">{t.title}</span>
+                <button
+                  onClick={() => deleteTopic(t.id)}
+                  disabled={deletingId === t.id}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/10 rounded-lg transition-all text-on-surface-variant hover:text-error disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Add topics */}
+        <div className="px-6 py-4 border-t border-outline-variant/10 space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Add Topics (one per line)</p>
+          <textarea
+            value={newTopic}
+            onChange={(e) => setNewTopic(e.target.value)}
+            placeholder={"Why I built X in a weekend\nThe $5k mistake I made..."}
+            rows={3}
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all resize-none"
+          />
+          <button
+            onClick={addTopic}
+            disabled={adding || !newTopic.trim()}
+            className="w-full bg-primary text-on-primary py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Plus size={14} />
+            {adding ? "Adding…" : "Add to Queue"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardClient() {
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -243,6 +352,7 @@ export function DashboardClient() {
     underperforming: { postType: string; approvalRate: number }[];
   } | null>(null);
   const [pausing, setPausing] = React.useState(false);
+  const [showTopicQueue, setShowTopicQueue] = React.useState(false);
 
   async function load() {
     setLoading(true);
@@ -414,6 +524,14 @@ export function DashboardClient() {
 
   return (
     <div className="px-6 pt-8 pb-12 max-w-7xl mx-auto">
+      {/* Topic queue modal */}
+      {showTopicQueue && (
+        <TopicQueueModal
+          onClose={() => setShowTopicQueue(false)}
+          onChanged={loadAutopilot}
+        />
+      )}
+
       {/* Edit modal */}
       {editingId && editingDraft && (
         <EditModal
@@ -717,7 +835,7 @@ export function DashboardClient() {
             <div className="bg-surface-container p-5 rounded-xl space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Topic Queue</span>
-                <a href="/settings" className="text-primary text-[10px] font-bold uppercase hover:underline">Edit</a>
+                <button onClick={() => setShowTopicQueue(true)} className="text-primary text-[10px] font-bold uppercase hover:underline">Edit</button>
               </div>
               <ul className="space-y-2 max-h-40 overflow-y-auto">
                 {topicPile.slice(0, 8).map((t) => (
