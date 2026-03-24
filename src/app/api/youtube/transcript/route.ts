@@ -16,13 +16,15 @@ function extractVideoId(url: string): string | null {
 
 async function fetchTranscript(videoId: string): Promise<string> {
   // Fetch the YouTube page as a browser would
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en&gl=US`, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9",
       Accept:
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Cookie": "CONSENT=YES+cb; GPS=1; VISITOR_INFO1_LIVE=; YSC=; PREF=f4=4000000&tz=Europe.London",
+      "Referer": "https://www.google.com/",
     },
   });
 
