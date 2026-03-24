@@ -9,7 +9,7 @@ export type Plan = {
 
 export const PLANS: Record<PlanId, Plan> = {
   free: {
-    monthlyPostLimit: 15,
+    monthlyPostLimit: 20,
     maxAutoPerMonth: 5,
     briefGeneration: false,
     experienceBank: false,

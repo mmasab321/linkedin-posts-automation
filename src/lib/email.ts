@@ -2,8 +2,6 @@ import { Resend } from "resend";
 
 import { prisma } from "@/lib/prisma";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.RESEND_FROM ?? "LinkedIn Auto-Poster <onboarding@resend.dev>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -28,30 +26,79 @@ export async function sendApprovalEmail(params: SendApprovalEmailParams): Promis
     timeStyle: "short",
   });
 
+  const previewText = content.slice(0, 120).replace(/\n/g, " ");
+
   const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Approve post: ${escapeHtml(topic.slice(0, 50))}</title>
+  <title>Review your LinkedIn post</title>
 </head>
-<body style="font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; max-width: 560px; margin: 0 auto; padding: 24px;">
-  <h1 style="font-size: 1.25rem; margin-bottom: 8px;">LinkedIn Auto-Poster – Post ready for review</h1>
-  <p style="color: #666; margin-bottom: 24px;">Scheduled for <strong>${escapeHtml(scheduledStr)}</strong>. Approve to publish or reject to cancel.</p>
-  <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 24px; white-space: pre-wrap;">${escapeHtml(content)}</div>
-  <p style="margin-bottom: 16px;">Choose an action (one-time use):</p>
-  <p style="margin-bottom: 12px;">
-    <a href="${approveUrl}" style="display: inline-block; background: #0a0; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">Approve – post will go live as scheduled</a>
-  </p>
-  <p>
-    <a href="${rejectUrl}" style="display: inline-block; background: #c00; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">Reject – cancel this post</a>
-  </p>
-  <p style="margin-top: 24px; font-size: 0.875rem; color: #888;">If you do nothing, this post will not be published.</p>
+<body style="margin:0;padding:0;background:#0f172a;font-family:system-ui,-apple-system,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="display:inline-block;background:#6366f1;color:#fff;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:6px 14px;border-radius:20px;">
+        LinkedIn Autopilot
+      </div>
+    </div>
+
+    <!-- Card -->
+    <div style="background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;margin-bottom:24px;">
+
+      <!-- Card header -->
+      <div style="padding:20px 24px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#94a3b8;">Post ready for review</p>
+        <h1 style="margin:0;font-size:17px;font-weight:700;color:#f1f5f9;line-height:1.4;">${escapeHtml(topic)}</h1>
+        <p style="margin:8px 0 0;font-size:13px;color:#64748b;">
+          Scheduled for <span style="color:#a5b4fc;font-weight:600;">${escapeHtml(scheduledStr)}</span>
+        </p>
+      </div>
+
+      <!-- Post preview -->
+      <div style="padding:20px 24px;background:#0f172a;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <p style="margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#475569;">Post preview</p>
+        <div style="font-size:14px;line-height:1.7;color:#cbd5e1;white-space:pre-wrap;max-height:280px;overflow:hidden;">${escapeHtml(content.slice(0, 800))}${content.length > 800 ? "\n\n…" : ""}</div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="padding:20px 24px;">
+        <p style="margin:0 0 16px;font-size:13px;color:#64748b;">One-time use links — each button works only once.</p>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding-right:8px;">
+              <a href="${approveUrl}"
+                style="display:block;text-align:center;background:#16a34a;color:#fff;padding:14px 20px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;letter-spacing:0.3px;">
+                ✓ Approve &amp; Schedule
+              </a>
+            </td>
+            <td style="padding-left:8px;">
+              <a href="${rejectUrl}"
+                style="display:block;text-align:center;background:#dc2626;color:#fff;padding:14px 20px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;letter-spacing:0.3px;">
+                ✕ Reject
+              </a>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <p style="text-align:center;font-size:12px;color:#334155;line-height:1.6;margin:0;">
+      If you do nothing, this post will <strong style="color:#475569;">not</strong> be published.<br>
+      This link expires after use. If you didn't expect this email, ignore it.
+    </p>
+
+  </div>
 </body>
 </html>
 `.trim();
 
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { data, error } = await resend.emails.send({
     from: FROM,
     to: [to],
