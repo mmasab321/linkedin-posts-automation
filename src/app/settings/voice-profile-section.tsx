@@ -2,11 +2,6 @@
 
 import * as React from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
 export function VoiceProfileSection() {
   const [name, setName] = React.useState("");
   const [headline, setHeadline] = React.useState("");
@@ -39,14 +34,10 @@ export function VoiceProfileSection() {
     }
   }
 
-  React.useEffect(() => {
-    load();
-  }, []);
+  React.useEffect(() => { load(); }, []);
 
   async function save() {
-    setSaving(true);
-    setMessage(null);
-    setError(null);
+    setSaving(true); setMessage(null); setError(null);
     try {
       const res = await fetch("/api/user/voice-profile", {
         method: "PUT",
@@ -72,53 +63,87 @@ export function VoiceProfileSection() {
     }
   }
 
-  if (loading) return <div className="text-sm text-neutral-500">Loading…</div>;
+  if (loading) return <div className="text-sm text-on-surface-variant">Loading…</div>;
 
   return (
-    <div className="space-y-4 border-b border-white/10 pb-6 mb-6">
-      <h3 className="text-lg font-semibold text-white">Voice profile</h3>
-      <p className="text-xs text-neutral-500">
-        Your identity for the LLM. Injected into the system prompt when all fields are filled.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label>Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your display name" />
+    <div className="bg-surface-container rounded-xl p-8">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-on-surface">Voice Profile</h2>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Your identity injected into the system prompt when all fields are filled.
+          </p>
         </div>
-        <div className="space-y-1">
-          <Label>Headline</Label>
-          <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. AI Automation & SaaS Developer" />
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="px-5 py-2 text-[11px] font-bold bg-primary text-on-primary rounded-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-95 transition-all uppercase disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Profile"}
+        </button>
+      </div>
+
+      {message && <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-400">{message}</div>}
+      {error && <div className="mb-4 rounded-xl border border-error/20 bg-error-container/10 p-4 text-sm text-error">{error}</div>}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your display name"
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Headline</label>
+          <input
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            placeholder="e.g. AI Automation & SaaS Developer"
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Niche</label>
+          <input
+            value={niche}
+            onChange={(e) => setNiche(e.target.value)}
+            placeholder="e.g. AI, SaaS, developer tools"
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Target Audience</label>
+          <input
+            value={audience}
+            onChange={(e) => setAudience(e.target.value)}
+            placeholder="Who you write for"
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Tone</label>
+          <input
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+            placeholder="e.g. casual, direct, builder-minded"
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all"
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Never Use (comma-separated)</label>
+          <textarea
+            value={avoidPhrases}
+            onChange={(e) => setAvoidPhrases(e.target.value)}
+            placeholder="Phrases to avoid"
+            rows={2}
+            className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 transition-all resize-none"
+          />
         </div>
       </div>
-      <div className="space-y-1">
-        <Label>Niche</Label>
-        <Input value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="e.g. AI, SaaS, developer tools" />
-      </div>
-      <div className="space-y-1">
-        <Label>Audience</Label>
-        <Input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Who you write for" />
-      </div>
-      <div className="space-y-1">
-        <Label>Tone</Label>
-        <Input value={tone} onChange={(e) => setTone(e.target.value)} placeholder="e.g. casual, direct, builder-minded" />
-      </div>
-      <div className="space-y-1">
-        <Label>Never use (comma-separated)</Label>
-        <Textarea value={avoidPhrases} onChange={(e) => setAvoidPhrases(e.target.value)} placeholder="Phrases to avoid" rows={2} />
-      </div>
-      <Button type="button" onClick={save} disabled={saving}>
-        {saving ? "Saving…" : "Save voice profile"}
-      </Button>
-      {message && (
-        <div className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-300">
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
-          {error}
-        </div>
-      )}
     </div>
   );
 }
