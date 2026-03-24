@@ -10,6 +10,7 @@ import { getOrCreateAutopilotConfig } from "@/lib/autopilot/engine";
 import { requireUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const BodySchema = z.union([
   z.object({
